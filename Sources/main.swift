@@ -42,8 +42,8 @@ let PREF_FULLSCREEN = "hotshotFullscreen"
 let PREF_NOTIFICATIONS = "hotshotNotifications"
 let PREF_AUTO_WATCH = "hotshotAutoWatch"
 let SCREENSHOT_EXTENSIONS: Set<String> = ["png", "jpg", "jpeg", "tiff", "bmp", "gif", "webp"]
-let WATCH_DEBOUNCE_SECONDS = 2.0
-let WATCH_FILE_AGE_MAX_SECONDS = 5.0
+let WATCH_DEBOUNCE_SECONDS = 1.5
+let WATCH_FILE_AGE_MAX_SECONDS = 10.0
 let PREF_SCREENSHOT_DIR = "hotshotScreenshotDir"
 let PREF_HOTKEY_KEYCODE = "hotshotHotkeyKeycode"
 let PREF_HOTKEY_MODIFIERS = "hotshotHotkeyModifiers"
@@ -423,7 +423,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
 
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
-            eventMask: .write,
+            eventMask: [.write, .rename, .link, .attrib],
             queue: DispatchQueue.main
         )
 
@@ -450,6 +450,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     }
 
     func handleDirectoryChange() {
+        NSLog("Hotshot: directory change detected, debouncing...")
         watchDebounceTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
         timer.schedule(deadline: .now() + WATCH_DEBOUNCE_SECONDS)
@@ -466,7 +467,9 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         let newFiles = current.subtracting(lastSeenScreenshots)
         lastSeenScreenshots = current
 
+        NSLog("Hotshot: checking for new screenshots, found \(newFiles.count) new file(s)")
         guard !newFiles.isEmpty else { return }
+        NSLog("Hotshot: new files: \(newFiles)")
 
         let fm = FileManager.default
         var newestFile: String?
