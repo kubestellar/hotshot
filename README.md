@@ -4,7 +4,7 @@ Take a screenshot, and it lands in your terminal. That's it.
 
 **hotshot** is a tiny macOS menu bar app that captures a screenshot and automatically pastes the file path into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
 
-If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** does all of that in one keystroke.
+If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** does all of that in one keystroke — or zero keystrokes if you use your Mac's built-in screenshot shortcuts.
 
 ## What it looks like
 
@@ -53,14 +53,20 @@ Grant both in System Settings > Privacy & Security. You only have to do this onc
 
 ## How it works
 
-hotshot remembers which terminal you last clicked on. When you press the hotkey, it:
+hotshot remembers which terminal you last clicked on. It works in two ways:
 
+**Hotkey mode (⇧⌘S):**
 1. Opens the macOS region selector (same crosshair as ⌘⇧4)
 2. Saves the screenshot to your configured folder
-3. Types the file path into your last active terminal session
+3. Injects the file path into your last active terminal session
 4. Brings the terminal back to the front
 
-That's it. No servers, no clipboard hacks, no browser extensions.
+**Auto-watch mode (on by default):**
+1. You take a screenshot with any native macOS shortcut (⌘⇧3, ⌘⇧4, ⌘⇧5)
+2. hotshot detects the new file in your screenshot folder
+3. Automatically injects the path into your last active terminal session
+
+Paths are injected in `[bracket]` format — the same format AI CLIs like Claude Code use for drag-and-dropped files. No servers, no clipboard hacks, no browser extensions.
 
 ## Configuring
 
@@ -99,13 +105,16 @@ Any CLI tool that accepts image file paths as input:
 ## FAQ
 
 **Does it conflict with the Mac's built-in screenshot shortcuts?**
-No. macOS system shortcuts (⌘⇧3, ⌘⇧4, ⌘⇧5) are handled at a lower level and can't be overridden. hotshot's default ⇧⌘S doesn't conflict. You can change it to anything you want from the menu bar.
+No — it works *with* them. macOS system shortcuts (⌘⇧3, ⌘⇧4, ⌘⇧5) still work as normal. With auto-watch enabled (the default), hotshot detects the new screenshot and injects it automatically. hotshot's own ⇧⌘S hotkey is a separate shortcut that doesn't conflict. You can change it to anything you want from the menu bar.
 
 **I pressed the shortcut and nothing happened.**
 Make sure hotshot is running (look for the camera icon in your menu bar). Also make sure you've clicked on a terminal window at least once since launching hotshot — it needs to know which terminal to target.
 
 **Where do the screenshots go?**
-By default, wherever your Mac saves screenshots (usually Desktop). You can change this from the menu bar > "Change screenshot folder..."
+By default, wherever your Mac saves screenshots (usually Desktop or Downloads). hotshot reads your macOS screenshot location setting automatically. You can override it from the menu bar > "Change screenshot folder..."
+
+**What format is the path injected in?**
+Paths are wrapped in square brackets: `[/path/to/screenshot.png]`. This is the same format Claude Code and other AI CLIs use when you drag and drop a file into the terminal.
 
 **Does it work over SSH?**
 Not directly — hotshot runs on your local Mac. For remote workflows, check out [clipssh](https://github.com/samuellawrentz/clipssh) or [clipaste](https://github.com/hqhq1025/clipaste).
