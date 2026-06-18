@@ -669,7 +669,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     }
 
     func injectPath(_ path: String, terminalBundleID bid: String) {
-        let bracketed = "[\(path)]"
+        let bracketed = "[\(path)] "
         switch bid {
         case "com.googlecode.iterm2":
             injectViaITerm2(bracketed)
