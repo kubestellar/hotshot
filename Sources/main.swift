@@ -40,6 +40,10 @@ let PREF_AUTO_FOCUS = "hotshotAutoFocus"
 let PREF_AUTO_RETURN = "hotshotAutoReturn"
 let PREF_FULLSCREEN = "hotshotFullscreen"
 let PREF_NOTIFICATIONS = "hotshotNotifications"
+let PREF_AUTO_WATCH = "hotshotAutoWatch"
+let SCREENSHOT_EXTENSIONS: Set<String> = ["png", "jpg", "jpeg", "tiff", "bmp", "gif", "webp"]
+let WATCH_DEBOUNCE_SECONDS = 2.0
+let WATCH_FILE_AGE_MAX_SECONDS = 5.0
 let PREF_SCREENSHOT_DIR = "hotshotScreenshotDir"
 let PREF_HOTKEY_KEYCODE = "hotshotHotkeyKeycode"
 let PREF_HOTKEY_MODIFIERS = "hotshotHotkeyModifiers"
@@ -142,6 +146,10 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var localMonitor: Any?
     var recorderWindow: ShortcutRecorderWindow?
     var workspace = NSWorkspace.shared
+    var watcherSource: DispatchSourceFileSystemObject?
+    var watcherFD: Int32 = -1
+    var lastSeenScreenshots: Set<String> = []
+    var watchDebounceTimer: DispatchSourceTimer?
 
     var autoFocus: Bool {
         get { UserDefaults.standard.object(forKey: PREF_AUTO_FOCUS) as? Bool ?? true }
@@ -161,6 +169,11 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var notifications: Bool {
         get { UserDefaults.standard.object(forKey: PREF_NOTIFICATIONS) as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: PREF_NOTIFICATIONS) }
+    }
+
+    var autoWatch: Bool {
+        get { UserDefaults.standard.object(forKey: PREF_AUTO_WATCH) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: PREF_AUTO_WATCH) }
     }
 
     var screenshotDir: String {
@@ -206,6 +219,10 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         }
 
         NSLog("Hotshot: launched, hotkey=\(hotkeyDisplayString(keycode: hotkeyKeycode, modifiers: hotkeyModifiers)), screenshotDir=\(screenshotDir)")
+
+        if autoWatch {
+            startWatchingScreenshots()
+        }
     }
 
     // MARK: - Status Bar
@@ -271,6 +288,18 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         notifyItem.state = notifications ? .on : .off
         menu.addItem(notifyItem)
 
+        let watchItem = NSMenuItem(
+            title: "Auto-inject new screenshots",
+            action: #selector(toggleAutoWatch), keyEquivalent: "")
+        watchItem.state = autoWatch ? .on : .off
+        menu.addItem(watchItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        menu.addItem(
+            withTitle: "Inject last screenshot", action: #selector(injectLastScreenshot),
+            keyEquivalent: "")
+
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(
@@ -309,6 +338,172 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     @objc func toggleNotifications() {
         notifications = !notifications
         rebuildMenu()
+    }
+
+    @objc func toggleAutoWatch() {
+        autoWatch = !autoWatch
+        if autoWatch {
+            startWatchingScreenshots()
+        } else {
+            stopWatchingScreenshots()
+        }
+        rebuildMenu()
+    }
+
+    @objc func injectLastScreenshot() {
+        let dir = (screenshotDir as NSString).expandingTildeInPath
+        guard let bid = lastTerminalBundleID else {
+            showNotification(title: "Hotshot", body: "No terminal session tracked yet. Focus a terminal first.")
+            return
+        }
+
+        guard let latest = findMostRecentScreenshot(in: dir) else {
+            showNotification(title: "Hotshot", body: "No screenshot files found in \(dir)")
+            return
+        }
+
+        NSLog("Hotshot: injecting last screenshot: \(latest)")
+        injectPath(latest, terminalBundleID: bid)
+        if autoFocus {
+            focusTerminal(bundleID: bid)
+        }
+        showNotification(title: "Hotshot", body: "Injected \u{2192} \(latest)")
+    }
+
+    // MARK: - Screenshot Folder Watcher
+
+    func findMostRecentScreenshot(in dir: String) -> String? {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return nil }
+
+        var newest: String?
+        var newestDate = Date.distantPast
+
+        for file in files {
+            let ext = (file as NSString).pathExtension.lowercased()
+            guard SCREENSHOT_EXTENSIONS.contains(ext) else { continue }
+            let fullPath = (dir as NSString).appendingPathComponent(file)
+            guard let attrs = try? fm.attributesOfItem(atPath: fullPath),
+                  let modified = attrs[.modificationDate] as? Date else { continue }
+            if modified > newestDate {
+                newestDate = modified
+                newest = fullPath
+            }
+        }
+        return newest
+    }
+
+    func snapshotScreenshotFiles(in dir: String) -> Set<String> {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
+        var result = Set<String>()
+        for file in files {
+            let ext = (file as NSString).pathExtension.lowercased()
+            if SCREENSHOT_EXTENSIONS.contains(ext) {
+                result.insert(file)
+            }
+        }
+        return result
+    }
+
+    func startWatchingScreenshots() {
+        stopWatchingScreenshots()
+
+        let dir = (screenshotDir as NSString).expandingTildeInPath
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+        lastSeenScreenshots = snapshotScreenshotFiles(in: dir)
+
+        let fd = open(dir, O_EVTONLY)
+        guard fd >= 0 else {
+            NSLog("Hotshot: failed to open directory for watching: \(dir)")
+            return
+        }
+        watcherFD = fd
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: .write,
+            queue: DispatchQueue.main
+        )
+
+        source.setEventHandler { [weak self] in
+            self?.handleDirectoryChange()
+        }
+
+        source.setCancelHandler {
+            close(fd)
+        }
+
+        source.resume()
+        watcherSource = source
+        NSLog("Hotshot: started watching \(dir) for new screenshots")
+    }
+
+    func stopWatchingScreenshots() {
+        watchDebounceTimer?.cancel()
+        watchDebounceTimer = nil
+        watcherSource?.cancel()
+        watcherSource = nil
+        watcherFD = -1
+        NSLog("Hotshot: stopped watching for screenshots")
+    }
+
+    func handleDirectoryChange() {
+        watchDebounceTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
+        timer.schedule(deadline: .now() + WATCH_DEBOUNCE_SECONDS)
+        timer.setEventHandler { [weak self] in
+            self?.checkForNewScreenshots()
+        }
+        timer.resume()
+        watchDebounceTimer = timer
+    }
+
+    func checkForNewScreenshots() {
+        let dir = (screenshotDir as NSString).expandingTildeInPath
+        let current = snapshotScreenshotFiles(in: dir)
+        let newFiles = current.subtracting(lastSeenScreenshots)
+        lastSeenScreenshots = current
+
+        guard !newFiles.isEmpty else { return }
+
+        let fm = FileManager.default
+        var newestFile: String?
+        var newestDate = Date.distantPast
+
+        for file in newFiles {
+            let fullPath = (dir as NSString).appendingPathComponent(file)
+            guard let attrs = try? fm.attributesOfItem(atPath: fullPath),
+                  let modified = attrs[.modificationDate] as? Date else { continue }
+
+            let age = Date().timeIntervalSince(modified)
+            guard age < WATCH_FILE_AGE_MAX_SECONDS else { continue }
+
+            // Skip hotshot's own captures
+            if file.hasPrefix("hotshot-") { continue }
+
+            if modified > newestDate {
+                newestDate = modified
+                newestFile = fullPath
+            }
+        }
+
+        guard let path = newestFile else { return }
+
+        NSLog("Hotshot: watcher detected new screenshot: \(path)")
+
+        guard let bid = lastTerminalBundleID else {
+            NSLog("Hotshot: new screenshot detected but no terminal tracked")
+            showNotification(title: "Hotshot", body: "Screenshot detected but no terminal session tracked")
+            return
+        }
+
+        injectPath(path, terminalBundleID: bid)
+        if autoFocus {
+            focusTerminal(bundleID: bid)
+        }
+        showNotification(title: "Hotshot", body: "Auto-injected \u{2192} \((path as NSString).lastPathComponent)")
     }
 
     @objc func chooseScreenshotDir() {

@@ -8,11 +8,17 @@ If you're like me, you use screenshots constantly to debug your work — a broke
 
 ## What it looks like
 
+**With the hotkey (⇧⌘S):**
 1. You're working in Claude Code (or any AI CLI) in your terminal
 2. You switch to a browser and spot a bug
 3. Press **⇧⌘S** — the familiar crosshair appears, select the area
 4. hotshot saves the screenshot and types the file path into your terminal session
 5. Your AI assistant reads the image and starts helping
+
+**With native screenshots (⌘⇧3, ⌘⇧4, ⌘⇧5):**
+1. Take a screenshot the way you always do — full screen, region, window, whatever
+2. hotshot detects the new file and automatically injects its path into your last terminal session
+3. That's it — keep using the shortcuts you already know
 
 No dragging files around. No copy-pasting paths. No "here let me find where that screenshot went."
 
@@ -66,6 +72,8 @@ Click the camera icon in your menu bar. Everything is configurable:
 | **Auto-press Return** | Off | Sends Enter after the path (so your CLI processes it immediately) |
 | **Capture full screen** | Off | Grabs the whole screen instead of letting you select a region |
 | **Show notifications** | Off | Desktop notification after each capture |
+| **Auto-inject new screenshots** | On | Watches your screenshot folder for new files (from ⌘⇧3/4/5) and auto-injects them |
+| **Inject last screenshot** | — | Menu action: injects the most recent screenshot file from your folder |
 | **Change screenshot folder** | Your macOS default | Pick any folder — opens a standard folder picker |
 | **Change shortcut** | ⇧⌘S | Press "Change shortcut..." and type any key combination you want |
 
@@ -107,15 +115,14 @@ Not yet — VS Code's terminal isn't a standalone app. For VS Code, try [vscode-
 
 ## Technical details
 
-Single Swift file (~400 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
+Single Swift file (~650 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
 
 - `NSEvent` global monitors for the hotkey
 - `NSWorkspace` notifications to track terminal focus
+- `DispatchSource` file system watcher for auto-detecting new screenshots
 - `/usr/sbin/screencapture` for the actual capture
 - `NSAppleScript` to inject the path into terminal sessions
 - `UserDefaults` to persist your preferences
-
-Binary size: ~90KB.
 
 ## License
 
