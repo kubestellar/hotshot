@@ -20,16 +20,28 @@ Take a screenshot, and it lands in your terminal. That's it.
 git clone https://github.com/kubestellar/hotshot.git
 cd hotshot
 swift build -c release
-sudo cp .build/release/hotshot /usr/local/bin/
 ```
 
-### Run
+### Option A: Install as macOS app (recommended)
 
 ```bash
+bash scripts/bundle.sh
+cp -r Hotshot.app /Applications/
+open /Applications/Hotshot.app
+```
+
+No terminal window needed. Add to System Settings > General > Login Items for auto-start.
+
+### Option B: Install as CLI
+
+```bash
+sudo cp .build/release/hotshot /usr/local/bin/
 hotshot
 ```
 
-A camera icon appears in your menu bar. To auto-start on login, add it to System Settings > General > Login Items.
+Runs in the foreground (use `hotshot &` to background it).
+
+Both options produce the same menu bar icon and behavior.
 
 ## How it works
 
@@ -49,7 +61,7 @@ Click the menu bar icon to configure:
 | Auto-press Return after paste | Off | Automatically hits Enter after pasting (sends the path immediately) |
 | Capture full screen | Off | Captures the entire screen instead of a selected region |
 | Change screenshot folder | macOS default | Choose where screenshots are saved (defaults to your macOS screenshot location) |
-| Shortcut | ⇧⌘S | Pick from preset hotkey combinations |
+| Change shortcut | ⇧⌘S | Record any key combination — press it in the recorder window |
 
 ## Supported terminals
 
@@ -82,8 +94,8 @@ Binary size: ~90KB.
 
 ## FAQ
 
-**Does it conflict with macOS ⌘⇧5?**
-No — ⌘⇧5 opens the macOS screenshot toolbar. hotshot's default is ⇧⌘S. You can change the shortcut from the menu bar.
+**Does it conflict with macOS ⌘⇧4 or ⌘⇧5?**
+No — macOS system shortcuts (⌘⇧3, ⌘⇧4, ⌘⇧5) are intercepted at a lower level and can't be overridden. hotshot's default is ⇧⌘S. You can record any other combination from the menu bar.
 
 **What if I haven't focused a terminal yet?**
 You'll get a notification saying "No terminal session tracked yet." Just click on your terminal window once, then try again.
