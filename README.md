@@ -1,10 +1,10 @@
 # hotshot
 
-If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. You screenshot it, then you need to get that image to your AI coding assistant (Claude Code, Copilot CLI, aider, etc.) running in a terminal.
+Take a screenshot, and it lands in your terminal. That's it.
 
-**hotshot** eliminates the middleman. It works just like the Mac screenshot tool you already know — press a shortcut, select a region — but instead of just saving the file somewhere, it automatically pastes the screenshot path directly into the last terminal session you were using. If that session has your favorite AI agent running in it, it picks up the image immediately.
+**hotshot** is a tiny macOS menu bar app that captures a screenshot and automatically pastes the file path into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
 
-Speeds things up quite a bit.
+If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** does all of that in one keystroke.
 
 ## What it looks like
 
