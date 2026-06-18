@@ -20,7 +20,7 @@ Take a screenshot, and it lands in your terminal. That's it.
 git clone https://github.com/kubestellar/hotshot.git
 cd hotshot
 swift build -c release
-cp .build/release/hotshot /usr/local/bin/
+sudo cp .build/release/hotshot /usr/local/bin/
 ```
 
 ### Run
