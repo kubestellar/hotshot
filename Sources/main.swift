@@ -404,7 +404,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
 
     @objc func captureAndInject() {
         NSLog("Hotshot: captureAndInject called, target=\(lastTerminalBundleID ?? "none")")
-        let dir = screenshotDir
+        let dir = (screenshotDir as NSString).expandingTildeInPath
         try? FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true)
 
@@ -426,8 +426,10 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         guard task.terminationStatus == 0,
             FileManager.default.fileExists(atPath: filePath)
         else {
+            NSLog("Hotshot: screenshot failed or cancelled (status=\(task.terminationStatus), exists=\(FileManager.default.fileExists(atPath: filePath)), path=\(filePath))")
             return
         }
+        NSLog("Hotshot: screenshot saved to \(filePath)")
 
         guard let bid = lastTerminalBundleID else {
             showNotification(
