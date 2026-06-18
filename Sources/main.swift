@@ -376,14 +376,16 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         eventType.eventKind = UInt32(kEventHotKeyPressed)
 
         let handler: EventHandlerUPP = { _, event, _ -> OSStatus in
+            NSLog("Hotshot: hotkey pressed!")
             HotshotApp.shared.captureAndInject()
             return noErr
         }
 
-        InstallEventHandler(
+        let installStatus = InstallEventHandler(
             GetApplicationEventTarget(), handler, 1, &eventType, nil, nil)
+        NSLog("Hotshot: InstallEventHandler status=\(installStatus)")
 
-        RegisterEventHotKey(
+        let regStatus = RegisterEventHotKey(
             hotkeyKeycode,
             hotkeyModifiers,
             hotKeyID,
@@ -391,6 +393,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             0,
             &hotkeyRef
         )
+        NSLog("Hotshot: RegisterEventHotKey status=\(regStatus) keycode=\(hotkeyKeycode) modifiers=\(hotkeyModifiers)")
     }
 
     static var shared: HotshotApp {
@@ -400,6 +403,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     // MARK: - Capture & Inject
 
     @objc func captureAndInject() {
+        NSLog("Hotshot: captureAndInject called, target=\(lastTerminalBundleID ?? "none")")
         let dir = screenshotDir
         try? FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true)
