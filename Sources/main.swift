@@ -669,11 +669,12 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     }
 
     func injectPath(_ path: String, terminalBundleID bid: String) {
+        let quoted = path.contains(" ") ? "\"\(path)\"" : path
         switch bid {
         case "com.googlecode.iterm2":
-            injectViaITerm2(path)
+            injectViaITerm2(quoted)
         default:
-            injectViaGenericAppleScript(path, bundleID: bid)
+            injectViaGenericAppleScript(quoted, bundleID: bid)
         }
     }
 
