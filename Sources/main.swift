@@ -175,7 +175,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             if UserDefaults.standard.object(forKey: PREF_HOTKEY_MODIFIERS) != nil {
                 return UInt32(UserDefaults.standard.integer(forKey: PREF_HOTKEY_MODIFIERS))
             }
-            return UInt32(cmdKey | shiftKey)
+            return UInt32(cmdKey | shiftKey | controlKey)
         }
         set { UserDefaults.standard.set(Int(newValue), forKey: PREF_HOTKEY_MODIFIERS) }
     }
