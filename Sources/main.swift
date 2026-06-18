@@ -39,6 +39,7 @@ let KEYCODE_NAMES: [UInt32: String] = [
 let PREF_AUTO_FOCUS = "hotshotAutoFocus"
 let PREF_AUTO_RETURN = "hotshotAutoReturn"
 let PREF_FULLSCREEN = "hotshotFullscreen"
+let PREF_NOTIFICATIONS = "hotshotNotifications"
 let PREF_SCREENSHOT_DIR = "hotshotScreenshotDir"
 let PREF_HOTKEY_KEYCODE = "hotshotHotkeyKeycode"
 let PREF_HOTKEY_MODIFIERS = "hotshotHotkeyModifiers"
@@ -137,6 +138,8 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var lastTerminalBundleID: String?
     var lastTerminalPID: pid_t?
     var hotkeyRef: EventHotKeyRef?
+    var globalMonitor: Any?
+    var localMonitor: Any?
     var recorderWindow: ShortcutRecorderWindow?
     var workspace = NSWorkspace.shared
 
@@ -153,6 +156,11 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var fullscreen: Bool {
         get { UserDefaults.standard.object(forKey: PREF_FULLSCREEN) as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: PREF_FULLSCREEN) }
+    }
+
+    var notifications: Bool {
+        get { UserDefaults.standard.object(forKey: PREF_NOTIFICATIONS) as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: PREF_NOTIFICATIONS) }
     }
 
     var screenshotDir: String {
@@ -257,6 +265,12 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         fullscreenItem.state = fullscreen ? .on : .off
         menu.addItem(fullscreenItem)
 
+        let notifyItem = NSMenuItem(
+            title: "Show notifications",
+            action: #selector(toggleNotifications), keyEquivalent: "")
+        notifyItem.state = notifications ? .on : .off
+        menu.addItem(notifyItem)
+
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(
@@ -292,6 +306,11 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         rebuildMenu()
     }
 
+    @objc func toggleNotifications() {
+        notifications = !notifications
+        rebuildMenu()
+    }
+
     @objc func chooseScreenshotDir() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -316,10 +335,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             self.hotkeyKeycode = keycode
             self.hotkeyModifiers = modifiers
 
-            if let ref = self.hotkeyRef {
-                UnregisterEventHotKey(ref)
-                self.hotkeyRef = nil
-            }
             self.registerHotkey()
             self.rebuildMenu()
 
@@ -367,33 +382,42 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     // MARK: - Global Hotkey
 
     func registerHotkey() {
-        var hotKeyID = EventHotKeyID()
-        hotKeyID.signature = OSType(HOTKEY_SIGNATURE)
-        hotKeyID.id = 1
+        unregisterHotkey()
 
-        var eventType = EventTypeSpec()
-        eventType.eventClass = OSType(kEventClassKeyboard)
-        eventType.eventKind = UInt32(kEventHotKeyPressed)
+        let targetKeycode = UInt16(hotkeyKeycode)
+        let targetModifiers = cocoaModifiers(from: hotkeyModifiers)
 
-        let handler: EventHandlerUPP = { _, event, _ -> OSStatus in
-            NSLog("Hotshot: hotkey pressed!")
-            HotshotApp.shared.captureAndInject()
-            return noErr
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == targetKeycode && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == targetModifiers {
+                NSLog("Hotshot: hotkey pressed (global)!")
+                self?.captureAndInject()
+            }
         }
 
-        let installStatus = InstallEventHandler(
-            GetApplicationEventTarget(), handler, 1, &eventType, nil, nil)
-        NSLog("Hotshot: InstallEventHandler status=\(installStatus)")
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == targetKeycode && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == targetModifiers {
+                NSLog("Hotshot: hotkey pressed (local)!")
+                self?.captureAndInject()
+                return nil
+            }
+            return event
+        }
 
-        let regStatus = RegisterEventHotKey(
-            hotkeyKeycode,
-            hotkeyModifiers,
-            hotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &hotkeyRef
-        )
-        NSLog("Hotshot: RegisterEventHotKey status=\(regStatus) keycode=\(hotkeyKeycode) modifiers=\(hotkeyModifiers)")
+        NSLog("Hotshot: registered hotkey monitors for keycode=\(targetKeycode) modifiers=\(targetModifiers.rawValue)")
+    }
+
+    func unregisterHotkey() {
+        if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
+        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
+    }
+
+    func cocoaModifiers(from carbon: UInt32) -> NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if carbon & UInt32(cmdKey) != 0 { flags.insert(.command) }
+        if carbon & UInt32(shiftKey) != 0 { flags.insert(.shift) }
+        if carbon & UInt32(controlKey) != 0 { flags.insert(.control) }
+        if carbon & UInt32(optionKey) != 0 { flags.insert(.option) }
+        return flags
     }
 
     static var shared: HotshotApp {
@@ -533,6 +557,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     }
 
     func showNotification(title: String, body: String) {
+        guard notifications else { return }
         let script = """
             display notification "\(body)" with title "\(title)"
             """
