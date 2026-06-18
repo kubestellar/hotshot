@@ -194,7 +194,10 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         {
             lastTerminalBundleID = bid
             lastTerminalPID = front.processIdentifier
+            NSLog("Hotshot: seeded target = \(bid) pid=\(front.processIdentifier)")
         }
+
+        NSLog("Hotshot: launched, hotkey=\(hotkeyDisplayString(keycode: hotkeyKeycode, modifiers: hotkeyModifiers)), screenshotDir=\(screenshotDir)")
     }
 
     // MARK: - Status Bar
@@ -357,6 +360,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             lastTerminalBundleID = bid
             lastTerminalPID = app.processIdentifier
             updateTargetLabel()
+            NSLog("Hotshot: target changed to \(bid) pid=\(app.processIdentifier)")
         }
     }
 
