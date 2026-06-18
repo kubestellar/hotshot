@@ -22,26 +22,14 @@ cd hotshot
 swift build -c release
 ```
 
-### Option A: Install as macOS app (recommended)
-
-```bash
-bash scripts/bundle.sh
-cp -r Hotshot.app /Applications/
-open /Applications/Hotshot.app
-```
-
-No terminal window needed. Add to System Settings > General > Login Items for auto-start.
-
-### Option B: Install as CLI
+### Install
 
 ```bash
 sudo cp .build/release/hotshot /usr/local/bin/
 hotshot
 ```
 
-Runs in the foreground (use `hotshot &` to background it).
-
-Both options produce the same menu bar icon and behavior.
+A camera icon appears in your menu bar. Run `hotshot &` to background it.
 
 ## How it works
 
