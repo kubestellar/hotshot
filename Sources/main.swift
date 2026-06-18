@@ -455,19 +455,32 @@ class HotshotApp: NSObject, NSApplicationDelegate {
 
     func injectViaITerm2(_ path: String) {
         let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
-        var script = """
-            tell application "iTerm2"
-                tell current session of current window
-                    write text "\(escaped)" newline \(autoReturn ? "yes" : "no")
+        var script: String
+        if autoReturn {
+            script = """
+                tell application "iTerm2"
+                    tell current session of current window
+                        write text "\(escaped)"
+                    end tell
                 end tell
-            end tell
-            """
+                """
+        } else {
+            script = """
+                tell application "iTerm2"
+                    tell current session of current window
+                        write text "\(escaped)" newline NO
+                    end tell
+                end tell
+                """
+        }
         if autoFocus {
             script += """
 
                 tell application "iTerm2" to activate
                 """
         }
+        NSLog("Hotshot: injecting into iTerm2, path=\(path)")
+        NSLog("Hotshot: script=\(script)")
         runAppleScript(script)
     }
 
@@ -506,10 +519,14 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     func runAppleScript(_ source: String) {
         var error: NSDictionary?
         if let script = NSAppleScript(source: source) {
-            script.executeAndReturnError(&error)
+            let result = script.executeAndReturnError(&error)
             if let err = error {
-                NSLog("Hotshot AppleScript error: \(err)")
+                NSLog("Hotshot: AppleScript ERROR: \(err)")
+            } else {
+                NSLog("Hotshot: AppleScript OK, result=\(result.stringValue ?? "(none)")")
             }
+        } else {
+            NSLog("Hotshot: failed to create NSAppleScript")
         }
     }
 
