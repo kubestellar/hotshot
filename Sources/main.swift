@@ -543,8 +543,12 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func updateTargetLabel() {
         guard let menuItem = statusItem.menu?.item(withTag: 100) else { return }
-        guard let name = lastTerminalName else { return }
-        menuItem.title = "Target: \(name)"
+        guard let pid = lastTerminalPID else { return }
+        if let app = workspace.runningApplications.first(where: { $0.processIdentifier == pid }),
+           let title = windowTitle(for: app), !title.isEmpty {
+            lastTerminalName = title
+        }
+        menuItem.title = "Target: \(lastTerminalName ?? "unknown")"
     }
 
     // MARK: - App Activation Observer
