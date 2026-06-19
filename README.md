@@ -2,23 +2,17 @@
 
 Take a screenshot, and it lands in your terminal. That's it.
 
-**hotshot** is a tiny macOS menu bar app that captures a screenshot and automatically pastes the file path into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
+**hotshot** is a tiny macOS menu bar app that watches for new screenshots and automatically injects the file path into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
 
-If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** does all of that in one keystroke — or zero keystrokes if you use your Mac's built-in screenshot shortcuts.
+If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** skips all of that — just take a screenshot the way you always do and the path appears in your terminal.
 
 ## What it looks like
 
-**With the hotkey (⇧⌘S):**
 1. You're working in Claude Code (or any AI CLI) in your terminal
 2. You switch to a browser and spot a bug
-3. Press **⇧⌘S** — the familiar crosshair appears, select the area
-4. hotshot saves the screenshot and types the file path into your terminal session
+3. Take a screenshot with **⌘⇧3**, **⌘⇧4**, or **⌘⇧5** — whatever you normally use
+4. hotshot detects the new file and injects the path into your terminal session
 5. Your AI assistant reads the image and starts helping
-
-**With native screenshots (⌘⇧3, ⌘⇧4, ⌘⇧5):**
-1. Take a screenshot the way you always do — full screen, region, window, whatever
-2. hotshot detects the new file and automatically injects its path into your last terminal session
-3. That's it — keep using the shortcuts you already know
 
 No dragging files around. No copy-pasting paths. No "here let me find where that screenshot went."
 
@@ -53,18 +47,12 @@ Grant both in System Settings > Privacy & Security. You only have to do this onc
 
 ## How it works
 
-hotshot remembers which terminal you last clicked on. It works in two ways:
+hotshot remembers which terminal you last clicked on. When you take a screenshot:
 
-**Hotkey mode (⇧⌘S):**
-1. Opens the macOS region selector (same crosshair as ⌘⇧4)
-2. Saves the screenshot to your configured folder
+1. macOS saves the screenshot to your configured folder (Desktop, Downloads, etc.)
+2. hotshot detects the new file within a couple of seconds
 3. Injects the file path into your last active terminal session
 4. Brings the terminal back to the front
-
-**Auto-watch mode (on by default):**
-1. You take a screenshot with any native macOS shortcut (⌘⇧3, ⌘⇧4, ⌘⇧5)
-2. hotshot detects the new file in your screenshot folder
-3. Automatically injects the path into your last active terminal session
 
 Paths are injected in `[bracket]` format — the same format AI CLIs like Claude Code use for drag-and-dropped files. No servers, no clipboard hacks, no browser extensions.
 
@@ -76,12 +64,10 @@ Click the camera icon in your menu bar. Everything is configurable:
 |--------|---------|--------------|
 | **Auto-focus terminal** | On | Brings your terminal to the front after pasting the path |
 | **Auto-press Return** | Off | Sends Enter after the path (so your CLI processes it immediately) |
-| **Capture full screen** | Off | Grabs the whole screen instead of letting you select a region |
 | **Show notifications** | Off | Desktop notification after each capture |
-| **Auto-inject new screenshots** | On | Watches your screenshot folder for new files (from ⌘⇧3/4/5) and auto-injects them |
+| **Auto-inject new screenshots** | On | Watches your screenshot folder for new files and auto-injects them |
 | **Inject last screenshot** | — | Menu action: injects the most recent screenshot file from your folder |
 | **Change screenshot folder** | Your macOS default | Pick any folder — opens a standard folder picker |
-| **Change shortcut** | ⇧⌘S | Press "Change shortcut..." and type any key combination you want |
 
 ## Works with these terminals
 
@@ -105,9 +91,9 @@ Any CLI tool that accepts image file paths as input:
 ## FAQ
 
 **Does it conflict with the Mac's built-in screenshot shortcuts?**
-No — it works *with* them. macOS system shortcuts (⌘⇧3, ⌘⇧4, ⌘⇧5) still work as normal. With auto-watch enabled (the default), hotshot detects the new screenshot and injects it automatically. hotshot's own ⇧⌘S hotkey is a separate shortcut that doesn't conflict. You can change it to anything you want from the menu bar.
+No — it works *with* them. Your normal ⌘⇧3, ⌘⇧4, ⌘⇧5 shortcuts work exactly as before. hotshot just watches for the new file and injects the path automatically.
 
-**I pressed the shortcut and nothing happened.**
+**I took a screenshot and nothing appeared in my terminal.**
 Make sure hotshot is running (look for the camera icon in your menu bar). Also make sure you've clicked on a terminal window at least once since launching hotshot — it needs to know which terminal to target.
 
 **Where do the screenshots go?**
@@ -124,12 +110,10 @@ Not yet — VS Code's terminal isn't a standalone app. For VS Code, try [vscode-
 
 ## Technical details
 
-Single Swift file (~650 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
+Single Swift file (~700 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
 
-- `NSEvent` global monitors for the hotkey
-- `NSWorkspace` notifications to track terminal focus
 - `DispatchSource` file system watcher for auto-detecting new screenshots
-- `/usr/sbin/screencapture` for the actual capture
+- `NSWorkspace` notifications to track terminal focus
 - `NSAppleScript` to inject the path into terminal sessions
 - `UserDefaults` to persist your preferences
 
