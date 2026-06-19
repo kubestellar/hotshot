@@ -181,7 +181,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     }
 
     var clipboardWatch: Bool {
-        get { UserDefaults.standard.object(forKey: PREF_CLIPBOARD_WATCH) as? Bool ?? false }
+        get { UserDefaults.standard.object(forKey: PREF_CLIPBOARD_WATCH) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: PREF_CLIPBOARD_WATCH) }
     }
 
