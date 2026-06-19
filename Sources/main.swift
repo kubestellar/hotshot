@@ -94,7 +94,20 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func setTarget(_ app: NSRunningApplication) {
         lastTerminalBundleID = app.bundleIdentifier
         lastTerminalPID = app.processIdentifier
-        lastTerminalName = app.localizedName ?? app.bundleIdentifier?.split(separator: ".").last.map(String.init) ?? "unknown"
+        lastTerminalName = windowTitle(for: app) ?? app.localizedName ?? "unknown"
+    }
+
+    func windowTitle(for app: NSRunningApplication) -> String? {
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        var focusedWindow: AnyObject?
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success else {
+            return nil
+        }
+        var title: AnyObject?
+        guard AXUIElementCopyAttributeValue(focusedWindow as! AXUIElement, kAXTitleAttribute as CFString, &title) == .success else {
+            return nil
+        }
+        return title as? String
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
