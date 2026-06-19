@@ -15,8 +15,8 @@ If you're like me, you use screenshots constantly to debug your work — a broke
 4. hotshot detects the new file and injects the path into your terminal session
 5. Your AI assistant reads the image and starts helping
 
-**Clipboard mode (⌃⌘3 / ⌃⌘4):**
-1. Take a screenshot to clipboard (Control-Command instead of Shift-Command)
+**Clipboard mode (⌃⌘⇧3 / ⌃⌘⇧4):**
+1. Take a screenshot to clipboard (Control-Command-Shift instead of Command-Shift)
 2. hotshot detects the new clipboard image and sends Ctrl-V to your terminal
 3. No files created — the image goes straight from clipboard to your AI assistant
 
@@ -47,11 +47,7 @@ A small camera icon appears in your menu bar — that's hotshot running. It stay
 
 ### First-time setup
 
-macOS will ask for two permissions the first time:
-- **Screen Recording** — so it can take screenshots
-- **Accessibility** — so it can type the path into your terminal
-
-Grant both in System Settings > Privacy & Security. You only have to do this once.
+macOS will ask for Accessibility permission the first time — this lets hotshot type the path into your terminal. Grant it in System Settings > Privacy & Security. You only have to do this once.
 
 ## How it works
 
@@ -62,7 +58,7 @@ hotshot remembers which terminal you last clicked on. It supports two injection 
 2. hotshot detects the new file within a couple of seconds
 3. Injects the file path (in `[bracket]` format) into your last active terminal session
 
-**Clipboard mode** (off by default):
+**Clipboard mode** (on by default):
 1. You take a screenshot to clipboard with ⌃⌘⇧3 or ⌃⌘⇧4
 2. hotshot detects the new image on the clipboard
 3. Sends Ctrl-V to your last active terminal, which pastes the image directly
@@ -79,7 +75,7 @@ Click the camera icon in your menu bar. Everything is configurable:
 | **Auto-press Return** | Off | Sends Enter after the path (so your CLI processes it immediately) |
 | **Show notifications** | Off | Desktop notification after each capture |
 | **Auto-inject new screenshots (file)** | On | Watches your screenshot folder for new files and auto-injects the path |
-| **Auto-inject from clipboard (⌃⌘⇧3/4)** | Off | Watches clipboard for new images and sends Ctrl-V to your terminal |
+| **Auto-inject from clipboard (⌃⌘⇧3/4)** | On | Watches clipboard for new images and sends Ctrl-V to your terminal |
 | **Inject last screenshot** | — | Menu action: injects the most recent screenshot file path |
 | **Inject clipboard image** | — | Menu action: sends Ctrl-V to paste current clipboard image |
 | **Change screenshot folder** | Your macOS default | Pick any folder — opens a standard folder picker |
@@ -125,7 +121,7 @@ Not yet — VS Code's terminal isn't a standalone app. For VS Code, try [vscode-
 
 ## Technical details
 
-Single Swift file (~700 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
+Single Swift file (~600 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
 
 - `DispatchSource` file system watcher for auto-detecting new screenshots
 - `NSPasteboard` polling for clipboard image detection

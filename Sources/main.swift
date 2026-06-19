@@ -1,5 +1,4 @@
 import AppKit
-import Carbon
 
 // MARK: - Constants
 
@@ -12,33 +11,11 @@ let TERMINAL_BUNDLE_IDS: Set<String> = [
     "com.mitchellh.ghostty",
 ]
 let REFOCUS_DELAY_SECONDS = 0.3
-let HOTKEY_SIGNATURE: UInt32 =
-    UInt32(UnicodeScalar("H").value) << 24
-    | UInt32(UnicodeScalar("S").value) << 16
-    | UInt32(UnicodeScalar("H").value) << 8
-    | UInt32(UnicodeScalar("T").value)
-
-let KEYCODE_NAMES: [UInt32: String] = [
-    0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G",
-    6: "Z", 7: "X", 8: "C", 9: "V", 11: "B", 12: "Q",
-    13: "W", 14: "E", 15: "R", 16: "Y", 17: "T", 18: "1",
-    19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 24: "=",
-    25: "9", 26: "7", 27: "-", 28: "8", 29: "0", 31: "O",
-    32: "U", 34: "I", 35: "P", 37: "L", 38: "J", 40: "K",
-    45: "N", 46: "M", 30: "]", 33: "[", 36: "Return",
-    39: "'", 41: ";", 42: "\\", 43: ",", 44: "/", 47: ".",
-    48: "Tab", 49: "Space", 50: "`",
-    96: "F5", 97: "F6", 98: "F7", 99: "F3", 100: "F8",
-    101: "F9", 109: "F10", 103: "F11", 111: "F12",
-    105: "F13", 107: "F14", 113: "F15",
-    118: "F4", 120: "F2", 122: "F1",
-]
 
 // MARK: - Preferences keys
 
 let PREF_AUTO_FOCUS = "hotshotAutoFocus"
 let PREF_AUTO_RETURN = "hotshotAutoReturn"
-let PREF_FULLSCREEN = "hotshotFullscreen"
 let PREF_NOTIFICATIONS = "hotshotNotifications"
 let PREF_AUTO_WATCH = "hotshotAutoWatch"
 let PREF_CLIPBOARD_WATCH = "hotshotClipboardWatch"
@@ -47,10 +24,6 @@ let WATCH_DEBOUNCE_SECONDS = 1.5
 let WATCH_FILE_AGE_MAX_SECONDS = 10.0
 let CLIPBOARD_POLL_INTERVAL_SECONDS = 0.5
 let PREF_SCREENSHOT_DIR = "hotshotScreenshotDir"
-let PREF_HOTKEY_KEYCODE = "hotshotHotkeyKeycode"
-let PREF_HOTKEY_MODIFIERS = "hotshotHotkeyModifiers"
-
-// MARK: - Helpers
 
 func macOSScreenshotLocation() -> String {
     let task = Process()
@@ -72,81 +45,12 @@ func macOSScreenshotLocation() -> String {
     return NSHomeDirectory() + "/Desktop"
 }
 
-func hotkeyDisplayString(keycode: UInt32, modifiers: UInt32) -> String {
-    var parts: [String] = []
-    if modifiers & UInt32(controlKey) != 0 { parts.append("⌃") }
-    if modifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
-    if modifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
-    if modifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
-    let keyName = KEYCODE_NAMES[keycode] ?? "key\(keycode)"
-    parts.append(keyName)
-    return parts.joined()
-}
-
-func carbonModifiers(from cocoa: NSEvent.ModifierFlags) -> UInt32 {
-    var mods: UInt32 = 0
-    if cocoa.contains(.command) { mods |= UInt32(cmdKey) }
-    if cocoa.contains(.shift) { mods |= UInt32(shiftKey) }
-    if cocoa.contains(.control) { mods |= UInt32(controlKey) }
-    if cocoa.contains(.option) { mods |= UInt32(optionKey) }
-    return mods
-}
-
-// MARK: - Shortcut Recorder Window
-
-class ShortcutRecorderWindow: NSWindow {
-    var onRecord: ((UInt32, UInt32) -> Void)?
-    var label: NSTextField!
-
-    convenience init(onRecord: @escaping (UInt32, UInt32) -> Void) {
-        let RECORDER_WIDTH = 340.0
-        let RECORDER_HEIGHT = 120.0
-        self.init(
-            contentRect: NSRect(x: 0, y: 0, width: RECORDER_WIDTH, height: RECORDER_HEIGHT),
-            styleMask: [.titled, .closable],
-            backing: .buffered, defer: false)
-        self.onRecord = onRecord
-        self.title = "Record Shortcut"
-        self.isReleasedWhenClosed = false
-        self.level = .floating
-        self.center()
-
-        let label = NSTextField(labelWithString: "Press your desired key combination\u{2026}")
-        label.font = NSFont.systemFont(ofSize: 16)
-        label.alignment = .center
-        label.frame = NSRect(x: 20, y: 40, width: RECORDER_WIDTH - 40, height: 60)
-        self.label = label
-        self.contentView?.addSubview(label)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        let keycode = UInt32(event.keyCode)
-        let mods = carbonModifiers(from: event.modifierFlags)
-
-        let hasModifier = mods != 0
-        let isModifierOnly = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63].contains(event.keyCode)
-
-        if hasModifier && !isModifierOnly {
-            let display = hotkeyDisplayString(keycode: keycode, modifiers: mods)
-            label.stringValue = "Recorded: \(display)"
-            onRecord?(keycode, mods)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.close()
-            }
-        }
-    }
-}
-
 // MARK: - App Delegate
 
 class HotshotApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var lastTerminalBundleID: String?
     var lastTerminalPID: pid_t?
-    var hotkeyRef: EventHotKeyRef?
-    var globalMonitor: Any?
-    var localMonitor: Any?
-    var recorderWindow: ShortcutRecorderWindow?
     var workspace = NSWorkspace.shared
     var watcherSource: DispatchSourceFileSystemObject?
     var watcherFD: Int32 = -1
@@ -163,11 +67,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var autoReturn: Bool {
         get { UserDefaults.standard.object(forKey: PREF_AUTO_RETURN) as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: PREF_AUTO_RETURN) }
-    }
-
-    var fullscreen: Bool {
-        get { UserDefaults.standard.object(forKey: PREF_FULLSCREEN) as? Bool ?? false }
-        set { UserDefaults.standard.set(newValue, forKey: PREF_FULLSCREEN) }
     }
 
     var notifications: Bool {
@@ -190,32 +89,12 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         set { UserDefaults.standard.set(newValue, forKey: PREF_SCREENSHOT_DIR) }
     }
 
-    var hotkeyKeycode: UInt32 {
-        get {
-            if UserDefaults.standard.object(forKey: PREF_HOTKEY_KEYCODE) != nil {
-                return UInt32(UserDefaults.standard.integer(forKey: PREF_HOTKEY_KEYCODE))
-            }
-            return 1
-        }
-        set { UserDefaults.standard.set(Int(newValue), forKey: PREF_HOTKEY_KEYCODE) }
-    }
-
-    var hotkeyModifiers: UInt32 {
-        get {
-            if UserDefaults.standard.object(forKey: PREF_HOTKEY_MODIFIERS) != nil {
-                return UInt32(UserDefaults.standard.integer(forKey: PREF_HOTKEY_MODIFIERS))
-            }
-            return UInt32(cmdKey | shiftKey)
-        }
-        set { UserDefaults.standard.set(Int(newValue), forKey: PREF_HOTKEY_MODIFIERS) }
-    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(
             atPath: screenshotDir, withIntermediateDirectories: true)
 
         setupStatusBar()
-        registerHotkey()
         observeAppActivation()
 
         if let front = workspace.frontmostApplication,
@@ -227,7 +106,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             NSLog("Hotshot: seeded target = \(bid) pid=\(front.processIdentifier)")
         }
 
-        NSLog("Hotshot: launched, hotkey=\(hotkeyDisplayString(keycode: hotkeyKeycode, modifiers: hotkeyModifiers)), screenshotDir=\(screenshotDir)")
+        NSLog("Hotshot: launched, screenshotDir=\(screenshotDir)")
 
         if autoWatch {
             startWatchingScreenshots()
@@ -260,11 +139,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     func rebuildMenu() {
         let menu = NSMenu()
 
-        menu.addItem(
-            withTitle: "Capture Screenshot", action: #selector(captureAndInject),
-            keyEquivalent: "")
-        menu.addItem(NSMenuItem.separator())
-
         let targetItem = NSMenuItem(title: "Target: none", action: nil, keyEquivalent: "")
         targetItem.tag = 100
         menu.addItem(targetItem)
@@ -287,12 +161,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         returnItem.state = autoReturn ? .on : .off
         menu.addItem(returnItem)
 
-        let fullscreenItem = NSMenuItem(
-            title: "Capture full screen (default: selected area)",
-            action: #selector(toggleFullscreen), keyEquivalent: "")
-        fullscreenItem.state = fullscreen ? .on : .off
-        menu.addItem(fullscreenItem)
-
         let notifyItem = NSMenuItem(
             title: "Show notifications",
             action: #selector(toggleNotifications), keyEquivalent: "")
@@ -300,7 +168,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         menu.addItem(notifyItem)
 
         let watchItem = NSMenuItem(
-            title: "Auto-inject new screenshots (file)",
+            title: "Auto-inject new screenshots (⌘⇧3/4)",
             action: #selector(toggleAutoWatch), keyEquivalent: "")
         watchItem.state = autoWatch ? .on : .off
         menu.addItem(watchItem)
@@ -326,11 +194,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             withTitle: "Change screenshot folder\u{2026}", action: #selector(chooseScreenshotDir),
             keyEquivalent: "")
 
-        let currentShortcut = hotkeyDisplayString(keycode: hotkeyKeycode, modifiers: hotkeyModifiers)
-        menu.addItem(
-            withTitle: "Change shortcut (\(currentShortcut))\u{2026}", action: #selector(recordShortcut),
-            keyEquivalent: "")
-
         menu.addItem(NSMenuItem.separator())
         menu.addItem(
             withTitle: "Quit Hotshot", action: #selector(NSApplication.terminate(_:)),
@@ -347,11 +210,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
 
     @objc func toggleAutoReturn() {
         autoReturn = !autoReturn
-        rebuildMenu()
-    }
-
-    @objc func toggleFullscreen() {
-        fullscreen = !fullscreen
         rebuildMenu()
     }
 
@@ -635,25 +493,6 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc func recordShortcut() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-
-        recorderWindow = ShortcutRecorderWindow { [weak self] keycode, modifiers in
-            guard let self = self else { return }
-            self.hotkeyKeycode = keycode
-            self.hotkeyModifiers = modifiers
-
-            self.registerHotkey()
-            self.rebuildMenu()
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                NSApp.setActivationPolicy(.accessory)
-            }
-        }
-        recorderWindow?.makeKeyAndOrderFront(nil)
-    }
-
     func updateTargetLabel() {
         if let bid = lastTerminalBundleID,
             let menuItem = statusItem.menu?.item(withTag: 100)
@@ -688,96 +527,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Global Hotkey
-
-    func registerHotkey() {
-        unregisterHotkey()
-
-        let targetKeycode = UInt16(hotkeyKeycode)
-        let targetModifiers = cocoaModifiers(from: hotkeyModifiers)
-
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == targetKeycode && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == targetModifiers {
-                NSLog("Hotshot: hotkey pressed (global)!")
-                self?.captureAndInject()
-            }
-        }
-
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == targetKeycode && event.modifierFlags.intersection(.deviceIndependentFlagsMask) == targetModifiers {
-                NSLog("Hotshot: hotkey pressed (local)!")
-                self?.captureAndInject()
-                return nil
-            }
-            return event
-        }
-
-        NSLog("Hotshot: registered hotkey monitors for keycode=\(targetKeycode) modifiers=\(targetModifiers.rawValue)")
-    }
-
-    func unregisterHotkey() {
-        if let m = globalMonitor { NSEvent.removeMonitor(m); globalMonitor = nil }
-        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
-    }
-
-    func cocoaModifiers(from carbon: UInt32) -> NSEvent.ModifierFlags {
-        var flags: NSEvent.ModifierFlags = []
-        if carbon & UInt32(cmdKey) != 0 { flags.insert(.command) }
-        if carbon & UInt32(shiftKey) != 0 { flags.insert(.shift) }
-        if carbon & UInt32(controlKey) != 0 { flags.insert(.control) }
-        if carbon & UInt32(optionKey) != 0 { flags.insert(.option) }
-        return flags
-    }
-
-    static var shared: HotshotApp {
-        return NSApp.delegate as! HotshotApp
-    }
-
-    // MARK: - Capture & Inject
-
-    @objc func captureAndInject() {
-        NSLog("Hotshot: captureAndInject called, target=\(lastTerminalBundleID ?? "none")")
-        let dir = (screenshotDir as NSString).expandingTildeInPath
-        try? FileManager.default.createDirectory(
-            atPath: dir, withIntermediateDirectories: true)
-
-        let timestamp = Int(Date().timeIntervalSince1970)
-        let filePath = "\(dir)/hotshot-\(timestamp).png"
-
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        task.arguments = fullscreen ? [filePath] : ["-i", filePath]
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-        } catch {
-            showNotification(title: "Hotshot", body: "Failed to launch screencapture")
-            return
-        }
-
-        guard task.terminationStatus == 0,
-            FileManager.default.fileExists(atPath: filePath)
-        else {
-            NSLog("Hotshot: screenshot failed or cancelled (status=\(task.terminationStatus), exists=\(FileManager.default.fileExists(atPath: filePath)), path=\(filePath))")
-            return
-        }
-        NSLog("Hotshot: screenshot saved to \(filePath)")
-
-        guard let bid = lastTerminalBundleID else {
-            showNotification(
-                title: "Hotshot", body: "No terminal session tracked yet. Focus a terminal first.")
-            return
-        }
-
-        injectPath(filePath, terminalBundleID: bid)
-
-        if autoFocus {
-            focusTerminal(bundleID: bid)
-        }
-
-        showNotification(title: "Hotshot", body: "Screenshot injected \u{2192} \(filePath)")
-    }
+    // MARK: - Path Injection
 
     func injectPath(_ path: String, terminalBundleID bid: String) {
         let bracketed = "[\(path)] "
