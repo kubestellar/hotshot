@@ -63,7 +63,7 @@ hotshot remembers which terminal you last clicked on. It supports two injection 
 3. Injects the file path (in `[bracket]` format) into your last active terminal session
 
 **Clipboard mode** (off by default):
-1. You take a screenshot to clipboard with ⌃⌘3 or ⌃⌘4
+1. You take a screenshot to clipboard with ⌃⌘⇧3 or ⌃⌘⇧4
 2. hotshot detects the new image on the clipboard
 3. Sends Ctrl-V to your last active terminal, which pastes the image directly
 
@@ -79,7 +79,7 @@ Click the camera icon in your menu bar. Everything is configurable:
 | **Auto-press Return** | Off | Sends Enter after the path (so your CLI processes it immediately) |
 | **Show notifications** | Off | Desktop notification after each capture |
 | **Auto-inject new screenshots (file)** | On | Watches your screenshot folder for new files and auto-injects the path |
-| **Auto-inject from clipboard (⌃⌘3/4)** | Off | Watches clipboard for new images and sends Ctrl-V to your terminal |
+| **Auto-inject from clipboard (⌃⌘⇧3/4)** | Off | Watches clipboard for new images and sends Ctrl-V to your terminal |
 | **Inject last screenshot** | — | Menu action: injects the most recent screenshot file path |
 | **Inject clipboard image** | — | Menu action: sends Ctrl-V to paste current clipboard image |
 | **Change screenshot folder** | Your macOS default | Pick any folder — opens a standard folder picker |
@@ -106,7 +106,7 @@ Any CLI tool that accepts image file paths as input:
 ## FAQ
 
 **Does it conflict with the Mac's built-in screenshot shortcuts?**
-No — it works *with* them. Your normal ⌘⇧3/4/5 shortcuts work exactly as before (file mode). And ⌃⌘3/4 clipboard shortcuts work with clipboard mode. hotshot watches for the results and injects automatically.
+No — it works *with* them. Your normal ⌘⇧3/4/5 shortcuts work exactly as before (file mode). And ⌃⌘⇧3/4 clipboard shortcuts work with clipboard mode. hotshot watches for the results and injects automatically.
 
 **I took a screenshot and nothing appeared in my terminal.**
 Make sure hotshot is running (look for the camera icon in your menu bar). Also make sure you've clicked on a terminal window at least once since launching hotshot — it needs to know which terminal to target.

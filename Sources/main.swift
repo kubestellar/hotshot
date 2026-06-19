@@ -307,7 +307,7 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         menu.addItem(watchItem)
 
         let clipItem = NSMenuItem(
-            title: "Auto-inject from clipboard (⌃⌘3/4)",
+            title: "Auto-inject from clipboard (⌃⌘⇧3/4)",
             action: #selector(toggleClipboardWatch), keyEquivalent: "")
         clipItem.state = clipboardWatch ? .on : .off
         menu.addItem(clipItem)
