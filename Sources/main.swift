@@ -47,7 +47,7 @@ func macOSScreenshotLocation() -> String {
 
 // MARK: - App Delegate
 
-class HotshotApp: NSObject, NSApplicationDelegate {
+class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var lastTerminalBundleID: String?
     var lastTerminalPID: pid_t?
@@ -104,6 +104,15 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             lastTerminalBundleID = bid
             lastTerminalPID = front.processIdentifier
             NSLog("Hotshot: seeded target = \(bid) pid=\(front.processIdentifier)")
+        } else {
+            for app in workspace.runningApplications where !app.isTerminated {
+                if let bid = app.bundleIdentifier, TERMINAL_BUNDLE_IDS.contains(bid) {
+                    lastTerminalBundleID = bid
+                    lastTerminalPID = app.processIdentifier
+                    NSLog("Hotshot: seeded target from running apps = \(bid) pid=\(app.processIdentifier)")
+                    break
+                }
+            }
         }
 
         NSLog("Hotshot: launched, screenshotDir=\(screenshotDir)")
@@ -199,7 +208,30 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             withTitle: "Quit Hotshot", action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q")
 
+        menu.delegate = self
         statusItem.menu = menu
+        updateTargetLabel()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        if lastTerminalBundleID == nil {
+            if let front = workspace.frontmostApplication,
+               let bid = front.bundleIdentifier,
+               TERMINAL_BUNDLE_IDS.contains(bid) {
+                lastTerminalBundleID = bid
+                lastTerminalPID = front.processIdentifier
+                NSLog("Hotshot: menuWillOpen seeded target = \(bid)")
+            } else {
+                for app in workspace.runningApplications where !app.isTerminated {
+                    if let bid = app.bundleIdentifier, TERMINAL_BUNDLE_IDS.contains(bid) {
+                        lastTerminalBundleID = bid
+                        lastTerminalPID = app.processIdentifier
+                        NSLog("Hotshot: menuWillOpen found running terminal = \(bid)")
+                        break
+                    }
+                }
+            }
+        }
         updateTargetLabel()
     }
 
