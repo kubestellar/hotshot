@@ -260,9 +260,8 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     func rebuildMenu() {
         let menu = NSMenu()
 
-        let hotkeyLabel = hotkeyDisplayString(keycode: hotkeyKeycode, modifiers: hotkeyModifiers)
         menu.addItem(
-            withTitle: "Capture Screenshot (\(hotkeyLabel))", action: #selector(captureAndInject),
+            withTitle: "Capture Screenshot", action: #selector(captureAndInject),
             keyEquivalent: "")
         menu.addItem(NSMenuItem.separator())
 
