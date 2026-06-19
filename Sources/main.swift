@@ -51,6 +51,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var lastTerminalBundleID: String?
     var lastTerminalPID: pid_t?
+    var lastTerminalName: String?
     var workspace = NSWorkspace.shared
     var watcherSource: DispatchSourceFileSystemObject?
     var watcherFD: Int32 = -1
@@ -90,6 +91,12 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
 
+    func setTarget(_ app: NSRunningApplication) {
+        lastTerminalBundleID = app.bundleIdentifier
+        lastTerminalPID = app.processIdentifier
+        lastTerminalName = app.localizedName ?? app.bundleIdentifier?.split(separator: ".").last.map(String.init) ?? "unknown"
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(
             atPath: screenshotDir, withIntermediateDirectories: true)
@@ -101,15 +108,13 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let bid = front.bundleIdentifier,
             TERMINAL_BUNDLE_IDS.contains(bid)
         {
-            lastTerminalBundleID = bid
-            lastTerminalPID = front.processIdentifier
-            NSLog("Hotshot: seeded target = \(bid) pid=\(front.processIdentifier)")
+            setTarget(front)
+            NSLog("Hotshot: seeded target = \(lastTerminalName ?? "unknown")")
         } else {
             for app in workspace.runningApplications where !app.isTerminated {
                 if let bid = app.bundleIdentifier, TERMINAL_BUNDLE_IDS.contains(bid) {
-                    lastTerminalBundleID = bid
-                    lastTerminalPID = app.processIdentifier
-                    NSLog("Hotshot: seeded target from running apps = \(bid) pid=\(app.processIdentifier)")
+                    setTarget(app)
+                    NSLog("Hotshot: seeded target from running apps = \(lastTerminalName ?? "unknown")")
                     break
                 }
             }
@@ -218,15 +223,13 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let front = workspace.frontmostApplication,
                let bid = front.bundleIdentifier,
                TERMINAL_BUNDLE_IDS.contains(bid) {
-                lastTerminalBundleID = bid
-                lastTerminalPID = front.processIdentifier
-                NSLog("Hotshot: menuWillOpen seeded target = \(bid)")
+                setTarget(front)
+                NSLog("Hotshot: menuWillOpen seeded target = \(lastTerminalName ?? "unknown")")
             } else {
                 for app in workspace.runningApplications where !app.isTerminated {
                     if let bid = app.bundleIdentifier, TERMINAL_BUNDLE_IDS.contains(bid) {
-                        lastTerminalBundleID = bid
-                        lastTerminalPID = app.processIdentifier
-                        NSLog("Hotshot: menuWillOpen found running terminal = \(bid)")
+                        setTarget(app)
+                        NSLog("Hotshot: menuWillOpen found running terminal = \(lastTerminalName ?? "unknown")")
                         break
                     }
                 }
@@ -347,7 +350,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 keystroke "v" using {control down}
             end tell
             """
-        NSLog("Hotshot: sending Ctrl-V to \(bid)")
+        NSLog("Hotshot: sending Ctrl-V to \(lastTerminalName ?? bid)")
         runAppleScript(script)
     }
 
@@ -526,12 +529,9 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func updateTargetLabel() {
-        if let bid = lastTerminalBundleID,
-            let menuItem = statusItem.menu?.item(withTag: 100)
-        {
-            let name = bid.split(separator: ".").last.map(String.init) ?? bid
-            menuItem.title = "Target: \(name) (pid \(lastTerminalPID ?? 0))"
-        }
+        guard let menuItem = statusItem.menu?.item(withTag: 100) else { return }
+        guard let name = lastTerminalName else { return }
+        menuItem.title = "Target: \(name)"
     }
 
     // MARK: - App Activation Observer
@@ -552,10 +552,9 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         else { return }
 
         if TERMINAL_BUNDLE_IDS.contains(bid) {
-            lastTerminalBundleID = bid
-            lastTerminalPID = app.processIdentifier
+            setTarget(app)
             updateTargetLabel()
-            NSLog("Hotshot: target changed to \(bid) pid=\(app.processIdentifier)")
+            NSLog("Hotshot: target changed to \(lastTerminalName ?? "unknown")")
         }
     }
 
