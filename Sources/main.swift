@@ -41,9 +41,11 @@ let PREF_AUTO_RETURN = "hotshotAutoReturn"
 let PREF_FULLSCREEN = "hotshotFullscreen"
 let PREF_NOTIFICATIONS = "hotshotNotifications"
 let PREF_AUTO_WATCH = "hotshotAutoWatch"
+let PREF_CLIPBOARD_WATCH = "hotshotClipboardWatch"
 let SCREENSHOT_EXTENSIONS: Set<String> = ["png", "jpg", "jpeg", "tiff", "bmp", "gif", "webp"]
 let WATCH_DEBOUNCE_SECONDS = 1.5
 let WATCH_FILE_AGE_MAX_SECONDS = 10.0
+let CLIPBOARD_POLL_INTERVAL_SECONDS = 0.5
 let PREF_SCREENSHOT_DIR = "hotshotScreenshotDir"
 let PREF_HOTKEY_KEYCODE = "hotshotHotkeyKeycode"
 let PREF_HOTKEY_MODIFIERS = "hotshotHotkeyModifiers"
@@ -150,6 +152,8 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var watcherFD: Int32 = -1
     var lastSeenScreenshots: Set<String> = []
     var watchDebounceTimer: DispatchSourceTimer?
+    var clipboardTimer: Timer?
+    var lastClipboardChangeCount: Int = 0
 
     var autoFocus: Bool {
         get { UserDefaults.standard.object(forKey: PREF_AUTO_FOCUS) as? Bool ?? true }
@@ -174,6 +178,11 @@ class HotshotApp: NSObject, NSApplicationDelegate {
     var autoWatch: Bool {
         get { UserDefaults.standard.object(forKey: PREF_AUTO_WATCH) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: PREF_AUTO_WATCH) }
+    }
+
+    var clipboardWatch: Bool {
+        get { UserDefaults.standard.object(forKey: PREF_CLIPBOARD_WATCH) as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: PREF_CLIPBOARD_WATCH) }
     }
 
     var screenshotDir: String {
@@ -222,6 +231,9 @@ class HotshotApp: NSObject, NSApplicationDelegate {
 
         if autoWatch {
             startWatchingScreenshots()
+        }
+        if clipboardWatch {
+            startWatchingClipboard()
         }
     }
 
@@ -289,15 +301,24 @@ class HotshotApp: NSObject, NSApplicationDelegate {
         menu.addItem(notifyItem)
 
         let watchItem = NSMenuItem(
-            title: "Auto-inject new screenshots",
+            title: "Auto-inject new screenshots (file)",
             action: #selector(toggleAutoWatch), keyEquivalent: "")
         watchItem.state = autoWatch ? .on : .off
         menu.addItem(watchItem)
+
+        let clipItem = NSMenuItem(
+            title: "Auto-inject from clipboard (⌃⌘3/4)",
+            action: #selector(toggleClipboardWatch), keyEquivalent: "")
+        clipItem.state = clipboardWatch ? .on : .off
+        menu.addItem(clipItem)
 
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(
             withTitle: "Inject last screenshot", action: #selector(injectLastScreenshot),
+            keyEquivalent: "")
+        menu.addItem(
+            withTitle: "Inject clipboard image (Ctrl-V)", action: #selector(injectClipboardNow),
             keyEquivalent: "")
 
         menu.addItem(NSMenuItem.separator())
@@ -348,6 +369,97 @@ class HotshotApp: NSObject, NSApplicationDelegate {
             stopWatchingScreenshots()
         }
         rebuildMenu()
+    }
+
+    @objc func toggleClipboardWatch() {
+        clipboardWatch = !clipboardWatch
+        if clipboardWatch {
+            startWatchingClipboard()
+        } else {
+            stopWatchingClipboard()
+        }
+        rebuildMenu()
+    }
+
+    @objc func injectClipboardNow() {
+        guard let bid = lastTerminalBundleID else {
+            showNotification(title: "Hotshot", body: "No terminal session tracked yet. Focus a terminal first.")
+            return
+        }
+
+        guard clipboardHasImage() else {
+            showNotification(title: "Hotshot", body: "No image on clipboard")
+            return
+        }
+
+        NSLog("Hotshot: manually injecting clipboard image via Ctrl-V")
+        sendCtrlV(terminalBundleID: bid)
+        showNotification(title: "Hotshot", body: "Clipboard image injected via Ctrl-V")
+    }
+
+    // MARK: - Clipboard Watcher
+
+    func clipboardHasImage() -> Bool {
+        let pb = NSPasteboard.general
+        return pb.canReadItem(withDataConformingToTypes: [
+            "public.png", "public.tiff", "public.jpeg",
+        ])
+    }
+
+    func startWatchingClipboard() {
+        stopWatchingClipboard()
+        lastClipboardChangeCount = NSPasteboard.general.changeCount
+        clipboardTimer = Timer.scheduledTimer(
+            timeInterval: CLIPBOARD_POLL_INTERVAL_SECONDS,
+            target: self,
+            selector: #selector(checkClipboard),
+            userInfo: nil,
+            repeats: true
+        )
+        NSLog("Hotshot: started watching clipboard for images")
+    }
+
+    func stopWatchingClipboard() {
+        clipboardTimer?.invalidate()
+        clipboardTimer = nil
+        NSLog("Hotshot: stopped watching clipboard")
+    }
+
+    @objc func checkClipboard() {
+        let pb = NSPasteboard.general
+        let currentCount = pb.changeCount
+        guard currentCount != lastClipboardChangeCount else { return }
+        lastClipboardChangeCount = currentCount
+
+        guard clipboardHasImage() else { return }
+
+        NSLog("Hotshot: clipboard image detected (changeCount=\(currentCount))")
+
+        guard let bid = lastTerminalBundleID else {
+            NSLog("Hotshot: clipboard image detected but no terminal tracked")
+            showNotification(title: "Hotshot", body: "Clipboard image detected but no terminal session tracked")
+            return
+        }
+
+        sendCtrlV(terminalBundleID: bid)
+        if autoFocus {
+            focusTerminal(bundleID: bid)
+        }
+        showNotification(title: "Hotshot", body: "Clipboard image injected via Ctrl-V")
+    }
+
+    func sendCtrlV(terminalBundleID bid: String) {
+        let script = """
+            tell application id "\(bid)"
+                activate
+            end tell
+            delay \(REFOCUS_DELAY_SECONDS)
+            tell application "System Events"
+                keystroke "v" using {control down}
+            end tell
+            """
+        NSLog("Hotshot: sending Ctrl-V to \(bid)")
+        runAppleScript(script)
     }
 
     @objc func injectLastScreenshot() {

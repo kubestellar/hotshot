@@ -2,17 +2,25 @@
 
 Take a screenshot, and it lands in your terminal. That's it.
 
-**hotshot** is a tiny macOS menu bar app that watches for new screenshots and automatically injects the file path into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
+**hotshot** is a tiny macOS menu bar app that watches for new screenshots and automatically injects them into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
 
-If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** skips all of that — just take a screenshot the way you always do and the path appears in your terminal.
+If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** skips all of that — just take a screenshot the way you always do and it lands in your terminal.
 
 ## What it looks like
 
+**File mode (default, ⌘⇧3 / ⌘⇧4 / ⌘⇧5):**
 1. You're working in Claude Code (or any AI CLI) in your terminal
 2. You switch to a browser and spot a bug
-3. Take a screenshot with **⌘⇧3**, **⌘⇧4**, or **⌘⇧5** — whatever you normally use
+3. Take a screenshot the way you always do
 4. hotshot detects the new file and injects the path into your terminal session
 5. Your AI assistant reads the image and starts helping
+
+**Clipboard mode (⌃⌘3 / ⌃⌘4):**
+1. Take a screenshot to clipboard (Control-Command instead of Shift-Command)
+2. hotshot detects the new clipboard image and sends Ctrl-V to your terminal
+3. No files created — the image goes straight from clipboard to your AI assistant
+
+Clipboard mode is ideal for remote sessions (tmux, zellij, OpenShell) where there's no shared filesystem.
 
 No dragging files around. No copy-pasting paths. No "here let me find where that screenshot went."
 
@@ -47,14 +55,19 @@ Grant both in System Settings > Privacy & Security. You only have to do this onc
 
 ## How it works
 
-hotshot remembers which terminal you last clicked on. When you take a screenshot:
+hotshot remembers which terminal you last clicked on. It supports two injection modes:
 
+**File mode** (on by default):
 1. macOS saves the screenshot to your configured folder (Desktop, Downloads, etc.)
 2. hotshot detects the new file within a couple of seconds
-3. Injects the file path into your last active terminal session
-4. Brings the terminal back to the front
+3. Injects the file path (in `[bracket]` format) into your last active terminal session
 
-Paths are injected in `[bracket]` format — the same format AI CLIs like Claude Code use for drag-and-dropped files. No servers, no clipboard hacks, no browser extensions.
+**Clipboard mode** (off by default):
+1. You take a screenshot to clipboard with ⌃⌘3 or ⌃⌘4
+2. hotshot detects the new image on the clipboard
+3. Sends Ctrl-V to your last active terminal, which pastes the image directly
+
+Both modes bring the terminal back to the front automatically. No servers, no browser extensions.
 
 ## Configuring
 
@@ -65,8 +78,10 @@ Click the camera icon in your menu bar. Everything is configurable:
 | **Auto-focus terminal** | On | Brings your terminal to the front after pasting the path |
 | **Auto-press Return** | Off | Sends Enter after the path (so your CLI processes it immediately) |
 | **Show notifications** | Off | Desktop notification after each capture |
-| **Auto-inject new screenshots** | On | Watches your screenshot folder for new files and auto-injects them |
-| **Inject last screenshot** | — | Menu action: injects the most recent screenshot file from your folder |
+| **Auto-inject new screenshots (file)** | On | Watches your screenshot folder for new files and auto-injects the path |
+| **Auto-inject from clipboard (⌃⌘3/4)** | Off | Watches clipboard for new images and sends Ctrl-V to your terminal |
+| **Inject last screenshot** | — | Menu action: injects the most recent screenshot file path |
+| **Inject clipboard image** | — | Menu action: sends Ctrl-V to paste current clipboard image |
 | **Change screenshot folder** | Your macOS default | Pick any folder — opens a standard folder picker |
 
 ## Works with these terminals
@@ -91,7 +106,7 @@ Any CLI tool that accepts image file paths as input:
 ## FAQ
 
 **Does it conflict with the Mac's built-in screenshot shortcuts?**
-No — it works *with* them. Your normal ⌘⇧3, ⌘⇧4, ⌘⇧5 shortcuts work exactly as before. hotshot just watches for the new file and injects the path automatically.
+No — it works *with* them. Your normal ⌘⇧3/4/5 shortcuts work exactly as before (file mode). And ⌃⌘3/4 clipboard shortcuts work with clipboard mode. hotshot watches for the results and injects automatically.
 
 **I took a screenshot and nothing appeared in my terminal.**
 Make sure hotshot is running (look for the camera icon in your menu bar). Also make sure you've clicked on a terminal window at least once since launching hotshot — it needs to know which terminal to target.
@@ -102,8 +117,8 @@ By default, wherever your Mac saves screenshots (usually Desktop or Downloads). 
 **What format is the path injected in?**
 Paths are wrapped in square brackets: `[/path/to/screenshot.png]`. This is the same format Claude Code and other AI CLIs use when you drag and drop a file into the terminal.
 
-**Does it work over SSH?**
-Not directly — hotshot runs on your local Mac. For remote workflows, check out [clipssh](https://github.com/samuellawrentz/clipssh) or [clipaste](https://github.com/hqhq1025/clipaste).
+**Does it work over SSH / remote sessions?**
+Clipboard mode works with remote sessions (tmux, zellij, OpenShell) as long as the clipboard is shared between your Mac and the remote terminal. For sessions without shared clipboard, check out [clipssh](https://github.com/samuellawrentz/clipssh) or [clipaste](https://github.com/hqhq1025/clipaste).
 
 **Can I use it with VS Code's integrated terminal?**
 Not yet — VS Code's terminal isn't a standalone app. For VS Code, try [vscode-terminal-image-paste](https://github.com/cybersader/vscode-terminal-image-paste).
@@ -113,8 +128,9 @@ Not yet — VS Code's terminal isn't a standalone app. For VS Code, try [vscode-
 Single Swift file (~700 lines), compiled to a native macOS binary. Zero dependencies — no frameworks, no packages, no runtime requirements. Just Apple's built-in APIs:
 
 - `DispatchSource` file system watcher for auto-detecting new screenshots
+- `NSPasteboard` polling for clipboard image detection
 - `NSWorkspace` notifications to track terminal focus
-- `NSAppleScript` to inject the path into terminal sessions
+- `NSAppleScript` to inject paths and keystrokes into terminal sessions
 - `UserDefaults` to persist your preferences
 
 ## License
