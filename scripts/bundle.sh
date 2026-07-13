@@ -27,6 +27,8 @@ cat > "$CONTENTS/Info.plist" << 'PLIST'
 <dict>
     <key>CFBundleName</key>
     <string>Hotshot</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Hotshot pastes screenshots into your terminal by sending it Apple Events. Without this permission, injection silently fails.</string>
     <key>CFBundleDisplayName</key>
     <string>Hotshot</string>
     <key>CFBundleIdentifier</key>

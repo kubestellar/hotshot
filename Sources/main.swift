@@ -349,14 +349,19 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        sendCtrlV(terminalBundleID: bid)
+        let injected = sendCtrlV(terminalBundleID: bid)
         if autoFocus {
             focusTerminal(bundleID: bid)
         }
-        showNotification(title: "Hotshot", body: "Clipboard image injected via Ctrl-V")
+        if injected {
+            showNotification(title: "Hotshot", body: "Clipboard image injected via Ctrl-V")
+        } else {
+            showNotification(title: "Hotshot", body: "Injection FAILED \u{2014} allow Hotshot to control your terminal: System Settings \u{2192} Privacy & Security \u{2192} Automation")
+        }
     }
 
-    func sendCtrlV(terminalBundleID bid: String) {
+    @discardableResult
+    func sendCtrlV(terminalBundleID bid: String) -> Bool {
         let script = """
             tell application id "\(bid)"
                 activate
@@ -367,7 +372,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             end tell
             """
         NSLog("Hotshot: sending Ctrl-V to \(lastTerminalName ?? bid)")
-        runAppleScript(script)
+        return runAppleScript(script)
     }
 
     @objc func injectLastScreenshot() {
@@ -522,11 +527,15 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        injectPath(path, terminalBundleID: bid)
+        let injected = injectPath(path, terminalBundleID: bid)
         if autoFocus {
             focusTerminal(bundleID: bid)
         }
-        showNotification(title: "Hotshot", body: "Auto-injected \u{2192} \((path as NSString).lastPathComponent)")
+        if injected {
+            showNotification(title: "Hotshot", body: "Auto-injected \u{2192} \((path as NSString).lastPathComponent)")
+        } else {
+            showNotification(title: "Hotshot", body: "Injection FAILED \u{2014} allow Hotshot to control your terminal: System Settings \u{2192} Privacy & Security \u{2192} Automation")
+        }
     }
 
     @objc func chooseScreenshotDir() {
@@ -580,17 +589,18 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Path Injection
 
-    func injectPath(_ path: String, terminalBundleID bid: String) {
+    @discardableResult
+    func injectPath(_ path: String, terminalBundleID bid: String) -> Bool {
         let bracketed = "[\(path)] "
         switch bid {
         case "com.googlecode.iterm2":
-            injectViaITerm2(bracketed)
+            return injectViaITerm2(bracketed)
         default:
-            injectViaGenericAppleScript(bracketed, bundleID: bid)
+            return injectViaGenericAppleScript(bracketed, bundleID: bid)
         }
     }
 
-    func injectViaITerm2(_ path: String) {
+    func injectViaITerm2(_ path: String) -> Bool {
         let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
         var script: String
         if autoReturn {
@@ -618,10 +628,10 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSLog("Hotshot: injecting into iTerm2, path=\(path)")
         NSLog("Hotshot: script=\(script)")
-        runAppleScript(script)
+        return runAppleScript(script)
     }
 
-    func injectViaGenericAppleScript(_ path: String, bundleID: String) {
+    func injectViaGenericAppleScript(_ path: String, bundleID: String) -> Bool {
         let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
         var script = """
             tell application id "\(bundleID)"
@@ -641,7 +651,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             end tell
             """
-        runAppleScript(script)
+        return runAppleScript(script)
     }
 
     func focusTerminal(bundleID: String) {
@@ -653,18 +663,20 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         runAppleScript(script)
     }
 
-    func runAppleScript(_ source: String) {
+    @discardableResult
+    func runAppleScript(_ source: String) -> Bool {
         var error: NSDictionary?
         if let script = NSAppleScript(source: source) {
             let result = script.executeAndReturnError(&error)
             if let err = error {
                 NSLog("Hotshot: AppleScript ERROR: \(err)")
-            } else {
-                NSLog("Hotshot: AppleScript OK, result=\(result.stringValue ?? "(none)")")
+                return false
             }
-        } else {
-            NSLog("Hotshot: failed to create NSAppleScript")
+            NSLog("Hotshot: AppleScript OK, result=\(result.stringValue ?? "(none)")")
+            return true
         }
+        NSLog("Hotshot: failed to create NSAppleScript")
+        return false
     }
 
     func showNotification(title: String, body: String) {
