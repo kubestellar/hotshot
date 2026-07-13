@@ -39,7 +39,10 @@ func macOSScreenshotLocation() -> String {
         if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
             !path.isEmpty
         {
-            return path
+            // The default may be stored with a literal tilde (e.g. "~/Downloads");
+            // screencaptureui resolves it, but a raw file watcher on the
+            // unexpanded string silently watches a nonexistent path.
+            return (path as NSString).expandingTildeInPath
         }
     } catch {}
     return NSHomeDirectory() + "/Desktop"
