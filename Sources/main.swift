@@ -699,6 +699,87 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return out
     }
 
+    // MARK: - CLI Detection
+
+    enum TargetCLI {
+        case claude  // expects "[path] " bracketed form
+        case plainPath  // GitHub Copilot CLI, aider, ... expect a bare escaped path
+    }
+
+    /// AppleScript expression returning the tty of the terminal's focused
+    /// session, per terminal app. Returns nil for terminals without
+    /// scriptable tty access.
+    func ttyScript(forBundleID bid: String) -> String? {
+        switch bid {
+        case "com.googlecode.iterm2":
+            return "tell application \"iTerm2\" to get tty of current session of current window"
+        case "com.apple.Terminal":
+            return "tell application \"Terminal\" to get tty of selected tab of front window"
+        default:
+            return nil
+        }
+    }
+
+    func runAppleScriptForResult(_ source: String) -> String? {
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: source) else { return nil }
+        let result = script.executeAndReturnError(&error)
+        if error != nil { return nil }
+        return result.stringValue
+    }
+
+    /// List the commands of processes attached to a tty (e.g. "ttys003").
+    func commands(onTTY tty: String) -> [String] {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = ["-t", tty, "-o", "command="]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let out = String(data: data, encoding: .utf8) else { return [] }
+            return out.split(separator: "\n").map(String.init)
+        } catch {
+            return []
+        }
+    }
+
+    /// Classify the commands running on a tty. Claude wins ties since the
+    /// bracketed form was hotshot's historical default.
+    func classifyCommands(_ commands: [String]) -> TargetCLI? {
+        var sawPlainPathCLI = false
+        for cmd in commands {
+            // First token of the command line, basename only.
+            let first = cmd.split(separator: " ").first.map(String.init) ?? cmd
+            let name = (first as NSString).lastPathComponent.lowercased()
+            if name == "claude" { return .claude }
+            if name == "copilot" || name == "aider" || name == "opencode" {
+                sawPlainPathCLI = true
+            }
+        }
+        return sawPlainPathCLI ? .plainPath : nil
+    }
+
+    /// Detect which CLI is running in the target terminal's focused session.
+    /// Falls back to .claude (the historical bracketed format) when the tty
+    /// cannot be determined or no known CLI is found.
+    func detectTargetCLI(terminalBundleID bid: String) -> TargetCLI {
+        guard let script = ttyScript(forBundleID: bid),
+            let ttyPath = runAppleScriptForResult(script),
+            !ttyPath.isEmpty
+        else {
+            NSLog("Hotshot: cannot determine tty for \(bid); defaulting to bracketed format")
+            return .claude
+        }
+        let tty = (ttyPath as NSString).lastPathComponent
+        let cli = classifyCommands(commands(onTTY: tty))
+        NSLog("Hotshot: tty=\(tty) detected CLI=\(String(describing: cli))")
+        return cli ?? .claude
+    }
+
     @discardableResult
     func injectPath(_ path: String, terminalBundleID bid: String) -> Bool {
         // Load the pasteboard with image + file URL + plain-text path so
@@ -706,13 +787,21 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Code via Ctrl-V) can consume the screenshot too.
         loadPasteboard(withFile: path)
 
-        // Type the bracketed form — the exact format Claude Code expects.
-        let bracketed = "[\(path)] "
+        // Type the format the CLI in the target session understands:
+        // Claude Code expects "[path] "; GitHub Copilot CLI and friends
+        // need a bare shell-escaped path (as Finder drag-and-drop inserts).
+        let text: String
+        switch detectTargetCLI(terminalBundleID: bid) {
+        case .plainPath:
+            text = shellEscapedPath(path) + " "
+        case .claude:
+            text = "[\(path)] "
+        }
         switch bid {
         case "com.googlecode.iterm2":
-            return injectViaITerm2(bracketed)
+            return injectViaITerm2(text)
         default:
-            return injectViaGenericAppleScript(bracketed, bundleID: bid)
+            return injectViaGenericAppleScript(text, bundleID: bid)
         }
     }
 
