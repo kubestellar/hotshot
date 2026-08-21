@@ -56,12 +56,12 @@ hotshot remembers which terminal you last clicked on. It supports two injection 
 **File mode** (on by default):
 1. macOS saves the screenshot to your configured folder (Desktop, Downloads, etc.)
 2. hotshot detects the new file within a couple of seconds
-3. Injects the file path (in `[bracket]` format) into your last active terminal session
+3. Injects the shell-escaped file path (like drag-and-drop from Finder) into your last active terminal session
 
 **Clipboard mode** (on by default):
 1. You take a screenshot to clipboard with ⌃⌘⇧3 or ⌃⌘⇧4
-2. hotshot detects the new image on the clipboard
-3. Sends Ctrl-V to your last active terminal, which pastes the image directly
+2. hotshot detects the new image on the clipboard, saves it to your screenshot folder as `hotshot-YYYYMMDD-HHMMSS.png`, and rewrites the clipboard with the image **plus** the file's plain-text path and file URL
+3. Sends Ctrl-V to your last active terminal — Claude Code reads the image data; CLIs like GitHub Copilot CLI get the file path when you paste as text (⌘V)
 
 Both modes bring the terminal back to the front automatically. No servers, no browser extensions.
 
@@ -111,7 +111,7 @@ Make sure hotshot is running (look for the camera icon in your menu bar). Also m
 By default, wherever your Mac saves screenshots (usually Desktop or Downloads). hotshot reads your macOS screenshot location setting automatically. You can override it from the menu bar > "Change screenshot folder..."
 
 **What format is the path injected in?**
-Paths are wrapped in square brackets: `[/path/to/screenshot.png]`. This is the same format Claude Code and other AI CLIs use when you drag and drop a file into the terminal.
+Paths are injected as a bare, backslash-escaped absolute path: `/path/to/Screenshot\ 2026-01-01.png` — exactly what Terminal inserts when you drag a file in from Finder. This works in Claude Code, GitHub Copilot CLI, aider, and any CLI that accepts file paths.
 
 **Does it work over SSH / remote sessions?**
 Clipboard mode works with remote sessions (tmux, zellij, OpenShell) as long as the clipboard is shared between your Mac and the remote terminal. For sessions without shared clipboard, check out [clipssh](https://github.com/samuellawrentz/clipssh) or [clipaste](https://github.com/hqhq1025/clipaste).
