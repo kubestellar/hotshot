@@ -56,7 +56,7 @@ hotshot remembers which terminal you last clicked on. It supports two injection 
 **File mode** (on by default):
 1. macOS saves the screenshot to your configured folder (Desktop, Downloads, etc.)
 2. hotshot detects the new file within a couple of seconds
-3. Injects the shell-escaped file path (like drag-and-drop from Finder) into your last active terminal session
+3. Injects the file path (in `[bracket]` format, as Claude Code expects) into your last active terminal session, and also loads the clipboard with the image + file URL + plain-text path so you can ⌘V it into GitHub Copilot CLI and other tools
 
 **Clipboard mode** (on by default):
 1. You take a screenshot to clipboard with ⌃⌘⇧3 or ⌃⌘⇧4
@@ -111,7 +111,7 @@ Make sure hotshot is running (look for the camera icon in your menu bar). Also m
 By default, wherever your Mac saves screenshots (usually Desktop or Downloads). hotshot reads your macOS screenshot location setting automatically. You can override it from the menu bar > "Change screenshot folder..."
 
 **What format is the path injected in?**
-Paths are injected as a bare, backslash-escaped absolute path: `/path/to/Screenshot\ 2026-01-01.png` — exactly what Terminal inserts when you drag a file in from Finder. This works in Claude Code, GitHub Copilot CLI, aider, and any CLI that accepts file paths.
+Typed injection wraps the path in square brackets: `[/path/to/screenshot.png]` — the format Claude Code expects. The clipboard simultaneously carries the PNG image, a file URL, and a backslash-escaped plain-text path, so pasting (⌘V) works in GitHub Copilot CLI, aider, and any CLI that accepts file paths, while Ctrl-V image paste keeps working in Claude Code.
 
 **Does it work over SSH / remote sessions?**
 Clipboard mode works with remote sessions (tmux, zellij, OpenShell) as long as the clipboard is shared between your Mac and the remote terminal. For sessions without shared clipboard, check out [clipssh](https://github.com/samuellawrentz/clipssh) or [clipaste](https://github.com/hqhq1025/clipaste).

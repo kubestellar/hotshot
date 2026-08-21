@@ -327,11 +327,47 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return nil
     }
 
+    /// Write a single pasteboard item carrying the PNG image (Claude Code
+    /// reads image data on Ctrl-V), a file URL (Finder-copy equivalence), and
+    /// a shell-escaped plain-text POSIX path (GitHub Copilot CLI and other
+    /// CLIs paste the path as text) all at once.
+    func writePasteboard(pngData: Data, path: String) {
+        let item = NSPasteboardItem()
+        item.setData(pngData, forType: .png)
+        item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
+        item.setString(shellEscapedPath(path), forType: .string)
+
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects([item])
+        // Don't let the clipboard watcher re-trigger on our own write.
+        lastClipboardChangeCount = pb.changeCount
+        NSLog("Hotshot: pasteboard loaded with image + path \(path)")
+    }
+
+    /// Load an on-disk screenshot onto the pasteboard (image + URL + path).
+    func loadPasteboard(withFile path: String) {
+        guard let data = FileManager.default.contents(atPath: path) else {
+            NSLog("Hotshot: could not read \(path) for pasteboard")
+            return
+        }
+        let png: Data
+        if (path as NSString).pathExtension.lowercased() == "png" {
+            png = data
+        } else if let rep = NSBitmapImageRep(data: data),
+            let converted = rep.representation(using: .png, properties: [:])
+        {
+            png = converted
+        } else {
+            NSLog("Hotshot: could not convert \(path) to PNG for pasteboard")
+            return
+        }
+        writePasteboard(pngData: png, path: path)
+    }
+
     /// Save the clipboard image to the screenshot folder and rewrite the
-    /// pasteboard so it carries the PNG image (Claude Code reads image data on
-    /// Ctrl-V), a file URL (Finder-copy equivalence), and a plain-text POSIX
-    /// path (GitHub Copilot CLI and other CLIs paste the path as text) all at
-    /// once. Returns the saved path, or nil if there was no image to save.
+    /// pasteboard with image + file URL + plain-text path representations.
+    /// Returns the saved path, or nil if there was no image to save.
     @discardableResult
     func enrichClipboardWithSavedImage() -> String? {
         let pb = NSPasteboard.general
@@ -339,7 +375,8 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Already enriched (image + existing file path) — nothing to do.
         if pb.data(forType: .png) != nil,
             let existing = pb.string(forType: .string),
-            FileManager.default.fileExists(atPath: existing)
+            FileManager.default.fileExists(
+                atPath: existing.replacingOccurrences(of: "\\", with: ""))
         {
             return existing
         }
@@ -362,16 +399,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return nil
         }
 
-        let item = NSPasteboardItem()
-        item.setData(png, forType: .png)
-        item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
-        item.setString(path, forType: .string)
-
-        pb.clearContents()
-        pb.writeObjects([item])
-        lastClipboardChangeCount = pb.changeCount
-
-        NSLog("Hotshot: clipboard enriched with image + path \(path)")
+        writePasteboard(pngData: png, path: path)
         return path
     }
 
@@ -673,16 +701,18 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @discardableResult
     func injectPath(_ path: String, terminalBundleID bid: String) -> Bool {
-        // Inject a bare shell-escaped path (identical to Finder drag-and-drop).
-        // The previous "[path] " bracket format only worked in Claude Code;
-        // GitHub Copilot CLI treats the brackets as literal text and fails to
-        // resolve the file.
-        let escaped = shellEscapedPath(path) + " "
+        // Load the pasteboard with image + file URL + plain-text path so
+        // CLIs that read the clipboard (GitHub Copilot CLI via ⌘V, Claude
+        // Code via Ctrl-V) can consume the screenshot too.
+        loadPasteboard(withFile: path)
+
+        // Type the bracketed form — the exact format Claude Code expects.
+        let bracketed = "[\(path)] "
         switch bid {
         case "com.googlecode.iterm2":
-            return injectViaITerm2(escaped)
+            return injectViaITerm2(bracketed)
         default:
-            return injectViaGenericAppleScript(escaped, bundleID: bid)
+            return injectViaGenericAppleScript(bracketed, bundleID: bid)
         }
     }
 
