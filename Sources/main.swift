@@ -301,6 +301,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         NSLog("Hotshot: manually injecting clipboard image via Ctrl-V")
+        enrichClipboardWithSavedImage()
         sendCtrlV(terminalBundleID: bid)
         showNotification(title: "Hotshot", body: "Clipboard image injected via Ctrl-V")
     }
@@ -312,6 +313,66 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return pb.canReadItem(withDataConformingToTypes: [
             "public.png", "public.tiff", "public.jpeg",
         ])
+    }
+
+    func clipboardPNGData() -> Data? {
+        let pb = NSPasteboard.general
+        if let png = pb.data(forType: .png) { return png }
+        if let tiff = pb.data(forType: .tiff),
+            let rep = NSBitmapImageRep(data: tiff),
+            let png = rep.representation(using: .png, properties: [:])
+        {
+            return png
+        }
+        return nil
+    }
+
+    /// Save the clipboard image to the screenshot folder and rewrite the
+    /// pasteboard so it carries the PNG image (Claude Code reads image data on
+    /// Ctrl-V), a file URL (Finder-copy equivalence), and a plain-text POSIX
+    /// path (GitHub Copilot CLI and other CLIs paste the path as text) all at
+    /// once. Returns the saved path, or nil if there was no image to save.
+    @discardableResult
+    func enrichClipboardWithSavedImage() -> String? {
+        let pb = NSPasteboard.general
+
+        // Already enriched (image + existing file path) — nothing to do.
+        if pb.data(forType: .png) != nil,
+            let existing = pb.string(forType: .string),
+            FileManager.default.fileExists(atPath: existing)
+        {
+            return existing
+        }
+
+        guard let png = clipboardPNGData() else { return nil }
+
+        let dir = (screenshotDir as NSString).expandingTildeInPath
+        try? FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let path = (dir as NSString).appendingPathComponent(
+            "hotshot-\(formatter.string(from: Date())).png")
+
+        do {
+            try png.write(to: URL(fileURLWithPath: path))
+        } catch {
+            NSLog("Hotshot: failed to save clipboard image to \(path): \(error)")
+            return nil
+        }
+
+        let item = NSPasteboardItem()
+        item.setData(png, forType: .png)
+        item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
+        item.setString(path, forType: .string)
+
+        pb.clearContents()
+        pb.writeObjects([item])
+        lastClipboardChangeCount = pb.changeCount
+
+        NSLog("Hotshot: clipboard enriched with image + path \(path)")
+        return path
     }
 
     func startWatchingClipboard() {
@@ -342,6 +403,11 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard clipboardHasImage() else { return }
 
         NSLog("Hotshot: clipboard image detected (changeCount=\(currentCount))")
+
+        // Save to disk and add a plain-text path + file URL alongside the
+        // image so both image-paste (Claude Code) and text-paste (GitHub
+        // Copilot CLI) consumers work.
+        enrichClipboardWithSavedImage()
 
         guard let bid = lastTerminalBundleID else {
             NSLog("Hotshot: clipboard image detected but no terminal tracked")
@@ -589,19 +655,47 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Path Injection
 
+    /// Backslash-escape a path the way Terminal does on drag-and-drop, so
+    /// CLIs that parse bare paths (GitHub Copilot CLI, aider, ...) accept it.
+    /// Claude Code accepts the same escaped form, so no brackets are needed.
+    func shellEscapedPath(_ path: String) -> String {
+        let specials: Set<Character> = [
+            " ", "\t", "!", "\"", "#", "$", "&", "'", "(", ")", "*",
+            ",", ";", "<", ">", "?", "[", "]", "\\", "^", "`", "{", "}", "|",
+        ]
+        var out = ""
+        for ch in path {
+            if specials.contains(ch) { out.append("\\") }
+            out.append(ch)
+        }
+        return out
+    }
+
     @discardableResult
     func injectPath(_ path: String, terminalBundleID bid: String) -> Bool {
-        let bracketed = "[\(path)] "
+        // Inject a bare shell-escaped path (identical to Finder drag-and-drop).
+        // The previous "[path] " bracket format only worked in Claude Code;
+        // GitHub Copilot CLI treats the brackets as literal text and fails to
+        // resolve the file.
+        let escaped = shellEscapedPath(path) + " "
         switch bid {
         case "com.googlecode.iterm2":
-            return injectViaITerm2(bracketed)
+            return injectViaITerm2(escaped)
         default:
-            return injectViaGenericAppleScript(bracketed, bundleID: bid)
+            return injectViaGenericAppleScript(escaped, bundleID: bid)
         }
     }
 
+    /// Escape a string for embedding in an AppleScript double-quoted literal.
+    /// Backslashes must be escaped first so shell-escaped paths survive intact.
+    func appleScriptEscaped(_ s: String) -> String {
+        return s
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
     func injectViaITerm2(_ path: String) -> Bool {
-        let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
+        let escaped = appleScriptEscaped(path)
         var script: String
         if autoReturn {
             script = """
@@ -632,7 +726,7 @@ class HotshotApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func injectViaGenericAppleScript(_ path: String, bundleID: String) -> Bool {
-        let escaped = path.replacingOccurrences(of: "\"", with: "\\\"")
+        let escaped = appleScriptEscaped(path)
         var script = """
             tell application id "\(bundleID)"
                 activate
