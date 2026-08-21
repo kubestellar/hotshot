@@ -56,7 +56,7 @@ hotshot remembers which terminal you last clicked on. It supports two injection 
 **File mode** (on by default):
 1. macOS saves the screenshot to your configured folder (Desktop, Downloads, etc.)
 2. hotshot detects the new file within a couple of seconds
-3. Injects the file path (in `[bracket]` format, as Claude Code expects) into your last active terminal session, and also loads the clipboard with the image + file URL + plain-text path so you can ⌘V it into GitHub Copilot CLI and other tools
+3. Detects which CLI is running in the target terminal session (via its tty) and injects the matching format — `[bracketed]` for Claude Code, a bare shell-escaped path for GitHub Copilot CLI/aider/OpenCode — and also loads the clipboard with the image + file URL + plain-text path so you can ⌘V it anywhere
 
 **Clipboard mode** (on by default):
 1. You take a screenshot to clipboard with ⌃⌘⇧3 or ⌃⌘⇧4
@@ -111,7 +111,7 @@ Make sure hotshot is running (look for the camera icon in your menu bar). Also m
 By default, wherever your Mac saves screenshots (usually Desktop or Downloads). hotshot reads your macOS screenshot location setting automatically. You can override it from the menu bar > "Change screenshot folder..."
 
 **What format is the path injected in?**
-Typed injection wraps the path in square brackets: `[/path/to/screenshot.png]` — the format Claude Code expects. The clipboard simultaneously carries the PNG image, a file URL, and a backslash-escaped plain-text path, so pasting (⌘V) works in GitHub Copilot CLI, aider, and any CLI that accepts file paths, while Ctrl-V image paste keeps working in Claude Code.
+hotshot inspects the processes on the target terminal session's tty (iTerm2 and Terminal.app) and picks the format that CLI understands: Claude Code gets `[/path/to/screenshot.png]`, while GitHub Copilot CLI, aider, and OpenCode get a bare backslash-escaped path (what Finder drag-and-drop inserts). If the CLI can't be determined, the historical bracketed format is used. The clipboard simultaneously carries the PNG image, a file URL, and the escaped plain-text path, so pasting (⌘V, or Ctrl-V in Claude Code) works everywhere.
 
 **Does it work over SSH / remote sessions?**
 Clipboard mode works with remote sessions (tmux, zellij, OpenShell) as long as the clipboard is shared between your Mac and the remote terminal. For sessions without shared clipboard, check out [clipssh](https://github.com/samuellawrentz/clipssh) or [clipaste](https://github.com/hqhq1025/clipaste).

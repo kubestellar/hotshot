@@ -55,8 +55,27 @@ PLIST
 
 echo "Done: $APP_BUNDLE"
 echo ""
-echo "To install:"
-echo "  cp -r $APP_BUNDLE /Applications/"
-echo ""
-echo "To run:"
-echo "  open /Applications/Hotshot.app"
+
+if [ "${1:-}" = "--install" ]; then
+    echo "Installing to /Applications..."
+    # Kill any running instance so the new build takes effect immediately.
+    RUNNING_PID="$(pgrep -x hotshot || true)"
+    if [ -n "$RUNNING_PID" ]; then
+        echo "Stopping running hotshot (pid $RUNNING_PID)..."
+        kill $RUNNING_PID || true
+        sleep 1
+    fi
+    rm -rf "/Applications/$APP_NAME.app"
+    cp -r "$APP_BUNDLE" /Applications/
+    open "/Applications/$APP_NAME.app"
+    echo "Installed and relaunched /Applications/$APP_NAME.app"
+else
+    echo "To install (kills + relaunches any running instance):"
+    echo "  $0 --install"
+    echo ""
+    echo "Or manually:"
+    echo "  cp -r $APP_BUNDLE /Applications/"
+    echo ""
+    echo "To run:"
+    echo "  open /Applications/Hotshot.app"
+fi
