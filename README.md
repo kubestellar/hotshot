@@ -6,6 +6,29 @@ Take a screenshot, and it lands in your terminal. That's it.
 
 If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** skips all of that — just take a screenshot the way you always do and it lands in your terminal.
 
+## Platforms
+
+| Platform | Form | Trigger | Install | Docs |
+|---|---|---|---|---|
+| **macOS** | Menu bar app (Swift, zero deps) | Native ⌘⇧3/4/5 + ⌃⌘⇧3/4 shortcuts (file/clipboard watcher) | [below](#install) | this page |
+| **Linux** | Shell script (X11 & Wayland) | Hotkey you bind in your DE (e.g. Ctrl+Shift+Print) | `linux/install.sh` | [linux/README.md](linux/README.md) |
+| **Windows** | PowerShell script (+ optional AutoHotkey v2) | Global hotkey (default Ctrl+Alt+H) → Snipping overlay | `windows\install.ps1` | [windows/README.md](windows/README.md) |
+
+All platforms honor the same contract:
+
+| | macOS | Linux | Windows |
+|---|---|---|---|
+| PNG saved to a known folder | ✅ | ✅ | ✅ |
+| Clipboard: image | ✅ | ✅ | ✅ |
+| Clipboard: plain-text path | ✅ | with CopyQ (single-owner clipboard otherwise) | ✅ |
+| Clipboard: file URL / drop list | ✅ file URL | with CopyQ | ✅ file drop list |
+| CLI detection (focused terminal's processes) | `ps -t <tty>` | `/proc` descendants | Win32_Process tree |
+| Claude Code → typed `[path] ` | ✅ | ✅ | ✅ |
+| Copilot CLI / aider / OpenCode → bare escaped path | ✅ backslash-escaped | ✅ backslash-escaped | quoted if spaces |
+| Unknown CLI → bracketed default | ✅ | ✅ | ✅ |
+
+The rest of this page documents the **macOS** app.
+
 ## What it looks like
 
 **File mode (default, ⌘⇧3 / ⌘⇧4 / ⌘⇧5):**
