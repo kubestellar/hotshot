@@ -2,7 +2,7 @@
 
 Take a screenshot, and it lands in your terminal. That's it.
 
-**hotshot** is a tiny macOS menu bar app that watches for new screenshots and automatically injects them into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
+**hotshot** is a tiny app that watches for new screenshots and automatically injects them into whichever terminal session you were last using. Built for AI coding assistants like [Claude Code](https://claude.ai/code), GitHub Copilot CLI, aider, and OpenCode that accept image paths as input.
 
 If you're like me, you use screenshots constantly to debug your work — a broken UI, a weird error message, a dashboard that doesn't look right. Normally you'd screenshot it, find the file, copy the path, switch to your terminal, paste it in. **hotshot** skips all of that — just take a screenshot the way you always do and it lands in your terminal.
 
