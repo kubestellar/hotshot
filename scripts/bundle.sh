@@ -32,7 +32,7 @@ cat > "$CONTENTS/Info.plist" << 'PLIST'
     <key>CFBundleDisplayName</key>
     <string>Hotshot</string>
     <key>CFBundleIdentifier</key>
-    <string>io.kubestellar.hotshot</string>
+    <string>io.hivecommons.hotshot</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
