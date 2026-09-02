@@ -23,7 +23,7 @@ This is the same clipboard/typing contract as the macOS app.
 ## Install
 
 ```bash
-git clone https://github.com/kubestellar/hotshot.git
+git clone https://github.com/hivecommons/hotshot.git
 cd hotshot/linux
 ./install.sh                 # installs to ~/.local/bin/hotshot-capture
 ./install.sh --gnome-hotkey  # also binds Ctrl+Shift+PrintScreen on GNOME
