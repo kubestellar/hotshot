@@ -52,7 +52,7 @@ No dragging files around. No copy-pasting paths. No "here let me find where that
 Requires macOS 13+ and Swift (comes with Xcode or Xcode Command Line Tools).
 
 ```bash
-git clone https://github.com/kubestellar/hotshot.git
+git clone https://github.com/hivecommons/hotshot.git
 cd hotshot
 swift build -c release
 sudo cp .build/release/hotshot /usr/local/bin/

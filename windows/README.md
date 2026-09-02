@@ -29,7 +29,7 @@ This is the same clipboard/typing contract as the macOS app.
 Everything uses built-in Windows components (PowerShell 5.1+, Snipping Tool).
 
 ```powershell
-git clone https://github.com/kubestellar/hotshot.git
+git clone https://github.com/hivecommons/hotshot.git
 cd hotshot\windows
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
